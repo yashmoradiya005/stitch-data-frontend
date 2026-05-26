@@ -17,7 +17,7 @@ const CompanyContext = createContext<CompanyContextType | null>(null);
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [currentCompany, setCurrentCompanyState] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const refreshCompanies = useCallback(async () => {
     if (!isAuthenticated()) return;
