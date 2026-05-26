@@ -9,15 +9,19 @@ import { StitchIcon } from "@/components/icons/StitchIcon";
 
 export default function SetupPage() {
   const router = useRouter();
-  const { refreshCompanies } = useCompany();
+  const { refreshCompanies, companies, loading: companiesLoading } = useCompany();
   const [name, setName] = useState("");
   const [machineCount, setMachineCount] = useState(1);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated()) router.push("/login");
-  }, [router]);
+    if (!isAuthenticated()) { router.push("/login"); return; }
+    // Already has businesses — go straight to dashboard
+    if (!companiesLoading && companies.length > 0) {
+      router.push("/dashboard");
+    }
+  }, [router, companies, companiesLoading]);
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
