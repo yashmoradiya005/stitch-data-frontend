@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/auth";
+import { useCompany } from "@/context/CompanyContext";
 import { StitchIcon } from "./icons/StitchIcon";
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -20,6 +21,7 @@ function EyeIcon({ open }: { open: boolean }) {
 
 export function LoginForm() {
   const router = useRouter();
+  const { refreshCompanies } = useCompany();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -34,6 +36,7 @@ export function LoginForm() {
 
     try {
       await login({ email, password, rememberMe });
+      await refreshCompanies();
       router.push("/dashboard");
     } catch (err: any) {
       setError(

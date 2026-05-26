@@ -20,7 +20,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshCompanies = useCallback(async () => {
-    if (!isAuthenticated()) return;
+    if (!isAuthenticated()) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await getCompanies();
