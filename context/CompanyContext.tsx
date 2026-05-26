@@ -30,8 +30,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       if (saved) {
         setCurrentCompanyState(saved);
       } else if (data.length > 0) {
-        setCurrentCompanyState(data[0]);
-        localStorage.setItem("currentCompanyId", data[0].id);
+        // default to most recently created business
+        const latest = data[data.length - 1];
+        setCurrentCompanyState(latest);
+        localStorage.setItem("currentCompanyId", latest.id);
       }
     } catch {
       // not authenticated or network error

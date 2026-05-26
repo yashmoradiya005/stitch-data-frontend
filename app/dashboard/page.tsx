@@ -1,89 +1,77 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { isAuthenticated, logout } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
 import { useCompany } from "@/context/CompanyContext";
+import { AppLayout } from "@/components/AppLayout";
 import { StitchIcon } from "@/components/icons/StitchIcon";
-import { BusinessSwitcher } from "@/components/BusinessSwitcher";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { currentCompany, loading } = useCompany();
-  const [authChecked, setAuthChecked] = useState(false);
+  const { currentCompany, companies, loading } = useCompany();
 
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push("/login");
-    } else {
-      setAuthChecked(true);
+      return;
     }
-  }, [router]);
+    // Once companies are loaded, redirect to setup if none exist
+    if (!loading && companies.length === 0) {
+      router.push("/setup");
+    }
+  }, [router, loading, companies]);
 
-  if (!authChecked || loading) {
+  if (loading || !currentCompany) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <StitchIcon className="w-12 h-12 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-500 text-sm">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+    <AppLayout>
+      <div className="max-w-4xl space-y-6">
+        {/* Business header card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3">
-              <StitchIcon className="w-8 h-8" />
-              <h1 className="text-xl font-bold text-gray-900">Stitch Data</h1>
+            <div className="w-14 h-14 rounded-xl bg-blue-900 text-white flex items-center justify-center text-2xl font-bold shrink-0">
+              {currentCompany.name.charAt(0).toUpperCase()}
             </div>
-            <div className="h-5 w-px bg-gray-200" />
-            <BusinessSwitcher />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{currentCompany.name}</h1>
+              <p className="text-gray-400 text-sm mt-0.5">
+                {currentCompany.machineCount} embroidery machine{currentCompany.machineCount !== 1 ? "s" : ""}
+              </p>
+            </div>
           </div>
-          <button
-            onClick={logout}
-            className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition text-sm"
-          >
-            Logout
-          </button>
         </div>
-      </nav>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        {currentCompany ? (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow p-8">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-14 h-14 rounded-xl bg-blue-900 text-white flex items-center justify-center text-2xl font-bold">
-                  {currentCompany.name.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">{currentCompany.name}</h2>
-                  <p className="text-gray-500 text-sm mt-0.5">
-                    {currentCompany.machineCount} embroidery machine{currentCompany.machineCount !== 1 ? "s" : ""}
-                  </p>
-                </div>
+        {/* Stat cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: "Employees", value: "—", icon: "👥" },
+            { label: "Today's Stitches", value: "—", icon: "🧵" },
+            { label: "This Month", value: "—", icon: "📋" },
+          ].map((stat) => (
+            <div key={stat.label} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
+              <span className="text-3xl">{stat.icon}</span>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">{stat.value}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{stat.label}</p>
               </div>
-              <p className="text-gray-500 text-sm">More features coming soon...</p>
             </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <StitchIcon className="w-12 h-12 mx-auto mb-4 opacity-30" />
-            <h2 className="text-xl font-semibold text-gray-700 mb-2">No business set up yet</h2>
-            <p className="text-gray-400 text-sm mb-6">Create your first business to get started.</p>
-            <button
-              onClick={() => router.push("/setup")}
-              className="px-6 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition text-sm font-medium"
-            >
-              Set up a business
-            </button>
-          </div>
-        )}
-      </main>
-    </div>
+          ))}
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <p className="text-gray-400 text-sm">More features coming soon...</p>
+        </div>
+      </div>
+    </AppLayout>
   );
 }

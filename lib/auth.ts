@@ -14,13 +14,28 @@ export interface RegisterCredentials {
   confirmPassword: string;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
 export interface AuthResponse {
   accessToken: string;
-  user: {
-    id: string;
-    email: string;
-    name: string;
-  };
+  user: AuthUser;
+}
+
+function saveUser(user: AuthUser) {
+  localStorage.setItem("user", JSON.stringify(user));
+}
+
+export function getStoredUser(): AuthUser | null {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function register(credentials: RegisterCredentials): Promise<AuthResponse> {
@@ -32,13 +47,12 @@ export async function register(credentials: RegisterCredentials): Promise<AuthRe
   });
 
   const { accessToken, user } = response.data;
-
   Cookies.set("accessToken", accessToken, {
     expires: 1,
     sameSite: "Strict",
     secure: process.env.NODE_ENV === "production",
   });
-
+  saveUser(user);
   return { accessToken, user };
 }
 
@@ -49,14 +63,12 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
   });
 
   const { accessToken, user } = response.data;
-
-  // Store token (httpOnly cookie handled by server, but also store accessible token)
   Cookies.set("accessToken", accessToken, {
-    expires: credentials.rememberMe ? 7 : 1, // 7 days if remember me, else session
+    expires: credentials.rememberMe ? 7 : 1,
     sameSite: "Strict",
     secure: process.env.NODE_ENV === "production",
   });
-
+  saveUser(user);
   return { accessToken, user };
 }
 
@@ -67,6 +79,8 @@ export async function logout(): Promise<void> {
     console.error("Logout error:", error);
   } finally {
     Cookies.remove("accessToken");
+    localStorage.removeItem("user");
+    localStorage.removeItem("currentCompanyId");
     window.location.href = "/login";
   }
 }
