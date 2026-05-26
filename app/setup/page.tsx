@@ -17,11 +17,22 @@ export default function SetupPage() {
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push("/login"); return; }
-    // Already has businesses — go straight to dashboard
     if (!companiesLoading && companies.length > 0) {
       router.push("/dashboard");
     }
   }, [router, companies, companiesLoading]);
+
+  // Block rendering the form until we've confirmed no businesses exist
+  if (!isAuthenticated() || companiesLoading || companies.length > 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="text-center">
+          <StitchIcon className="w-12 h-12 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-400 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
