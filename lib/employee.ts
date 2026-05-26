@@ -24,6 +24,20 @@ export async function getEmployees(companyId: string): Promise<Employee[]> {
   return res.data;
 }
 
+export async function updateEmployee(
+  id: string,
+  name: string,
+  phone: string,
+  imageData?: string | null
+): Promise<Employee> {
+  const res = await apiClient.put(`/api/employees/${id}`, { name, phone, imageData });
+  return res.data;
+}
+
+export async function deleteEmployee(id: string): Promise<void> {
+  await apiClient.delete(`/api/employees/${id}`);
+}
+
 export function toBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
