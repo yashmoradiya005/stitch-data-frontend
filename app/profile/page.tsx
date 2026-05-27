@@ -39,15 +39,22 @@ export default function ProfilePage() {
 
   return (
     <AppLayout>
-      <div className="max-w-lg space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
-          <p className="text-gray-400 text-sm mt-1">Manage your account details</p>
+      <div className="max-w-5xl w-full mx-auto space-y-4">
+
+        {/* Hero header */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-violet-800 rounded-2xl px-5 py-6 text-white">
+          <div className="absolute -top-6 -right-6 w-32 h-32 bg-white/5 rounded-full" />
+          <div className="absolute -bottom-8 -left-4 w-24 h-24 bg-white/5 rounded-full" />
+          <div className="relative">
+            <p className="text-blue-200 text-xs font-medium uppercase tracking-widest">Account Settings</p>
+            <h1 className="text-xl sm:text-2xl font-black mt-1">My Profile</h1>
+            <p className="text-blue-200 text-sm mt-0.5">{user?.email}</p>
+          </div>
         </div>
 
         {/* Profile form */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">Personal Information</h2>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Personal Information</h2>
 
           {success && (
             <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center gap-2">
@@ -95,7 +102,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Change password card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-base font-semibold text-gray-800 mb-1">Password</h2>
           <p className="text-sm text-gray-400 mb-4">Update your password to keep your account secure.</p>
           <button

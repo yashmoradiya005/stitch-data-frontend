@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { isAuthenticated } from "@/lib/auth";
 import { createCompany } from "@/lib/company";
 import { useCompany } from "@/context/CompanyContext";
-import { StitchIcon } from "@/components/icons/StitchIcon";
 
 export default function SetupPage() {
   const router = useRouter();
@@ -27,7 +26,7 @@ export default function SetupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="text-center">
-          <StitchIcon className="w-12 h-12 mx-auto mb-4 animate-pulse" />
+          <img src="/logo.png" alt="StitchDesk" className="h-14 w-auto object-contain mx-auto mb-4 animate-pulse" />
           <p className="text-gray-400 text-sm">Loading...</p>
         </div>
       </div>
@@ -63,7 +62,7 @@ export default function SetupPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
         <div className="flex flex-col items-center mb-8">
-          <StitchIcon className="w-16 h-16 mb-4" />
+          <img src="/logo.png" alt="StitchDesk" className="h-20 w-auto object-contain mb-4" />
           <h1 className="text-2xl font-bold text-gray-900">Set Up Your Business</h1>
           <p className="text-sm text-gray-500 mt-1 text-center">
             Tell us about your embroidery business to get started
@@ -141,7 +140,7 @@ export default function SetupPage() {
         </form>
 
         <p className="text-center text-gray-400 text-xs mt-8 border-t border-gray-200 pt-4">
-          © 2024 Stitch Data. All rights reserved.
+          © 2024 StitchDesk. All rights reserved.
         </p>
       </div>
     </div>

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/auth";
 import { useCompany } from "@/context/CompanyContext";
-import { StitchIcon } from "./icons/StitchIcon";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -52,9 +51,7 @@ export function LoginForm() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
         <div className="flex flex-col items-center mb-8">
-          <StitchIcon className="w-20 h-20 mb-4" />
-          <h1 className="text-3xl font-bold text-gray-900">Stitch Data</h1>
-          <p className="text-sm text-gray-500 mt-1">Embroidery Management System</p>
+          <img src="/logo.png" alt="StitchDesk" className="h-24 w-auto object-contain mb-1" />
         </div>
 
         {error && (
@@ -142,7 +139,7 @@ export function LoginForm() {
         </p>
 
         <p className="text-center text-gray-400 text-xs mt-8 border-t border-gray-200 pt-4">
-          © 2024 Stitch Data. All rights reserved.
+          © 2024 StitchDesk. All rights reserved.
         </p>
       </div>
     </div>

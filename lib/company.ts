@@ -16,3 +16,12 @@ export async function getCompanies(): Promise<Company[]> {
   const response = await apiClient.get("/api/companies");
   return response.data;
 }
+
+export async function updateCompany(id: string, name: string, machineCount: number): Promise<Company> {
+  const response = await apiClient.put(`/api/companies/${id}`, { name, machineCount });
+  return response.data;
+}
+
+export async function deleteCompany(id: string): Promise<void> {
+  await apiClient.delete(`/api/companies/${id}`);
+}

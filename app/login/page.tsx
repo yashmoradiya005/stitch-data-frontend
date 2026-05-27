@@ -2,8 +2,8 @@ import { LoginForm } from "@/components/LoginForm";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Login - Stitch Data",
-  description: "Sign in to your Stitch Data account",
+  title: "Login - StitchDesk",
+  description: "Sign in to your StitchDesk account",
 };
 
 export default function LoginPage() {
