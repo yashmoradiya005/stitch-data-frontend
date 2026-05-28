@@ -25,8 +25,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Fix SDK env conflict (align ANDROID_SDK_ROOT with ANDROID_HOME)
+        run: echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+
       - name: Accept Android SDK licenses
-        run: yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Install npm dependencies
         run: npm ci
@@ -38,9 +41,8 @@ jobs:
         run: npx cap sync android
 
       - name: Build debug APK
-        run: cd android && ./gradlew assembleDebug
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+        working-directory: android
+        run: ./gradlew assembleDebug
 
       - name: Upload APK as downloadable artifact
         uses: actions/upload-artifact@v4
