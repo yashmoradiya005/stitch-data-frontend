@@ -46,12 +46,13 @@ export async function register(credentials: RegisterCredentials): Promise<AuthRe
     confirmPassword: credentials.confirmPassword,
   });
 
-  const { accessToken, user } = response.data;
+  const { accessToken, refreshToken, user } = response.data;
   Cookies.set("accessToken", accessToken, {
     expires: 1,
     sameSite: "Strict",
     secure: process.env.NODE_ENV === "production",
   });
+  if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
   saveUser(user);
   return { accessToken, user };
 }
@@ -62,12 +63,13 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
     password: credentials.password,
   });
 
-  const { accessToken, user } = response.data;
+  const { accessToken, refreshToken, user } = response.data;
   Cookies.set("accessToken", accessToken, {
     expires: credentials.rememberMe ? 7 : 1,
     sameSite: "Strict",
     secure: process.env.NODE_ENV === "production",
   });
+  if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
   saveUser(user);
   return { accessToken, user };
 }
@@ -81,6 +83,7 @@ export async function logout(): Promise<void> {
     Cookies.remove("accessToken");
     localStorage.removeItem("user");
     localStorage.removeItem("currentCompanyId");
+    localStorage.removeItem("refreshToken");
     window.location.href = "/login";
   }
 }

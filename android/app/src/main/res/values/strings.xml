@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">StitchDesk</string>
+    <string name="title_activity_main">StitchDesk</string>
+    <string name="package_name">com.stitchdesk.app</string>
+    <string name="custom_url_scheme">com.stitchdesk.app</string>
+</resources>

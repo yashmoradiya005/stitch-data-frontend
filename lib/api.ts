@@ -1,9 +1,9 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 
-// Empty base URL = same origin. Next.js rewrites /api/* → backend server.
-// This works on any device without CORS or IP configuration.
-const API_BASE_URL = "";
+// Web (Vercel): empty string = same origin, Next.js proxy forwards /api/* to backend
+// Mobile (Capacitor): NEXT_PUBLIC_API_URL = full backend URL set at build time
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -32,9 +32,16 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
+        // Web: httpOnly cookie is forwarded via proxy
+        // Mobile: send refresh token from localStorage in request body (cookie won't travel cross-origin)
+        const storedRefreshToken =
+          typeof localStorage !== "undefined"
+            ? localStorage.getItem("refreshToken")
+            : null;
+
         const response = await axios.post(
           `${API_BASE_URL}/api/auth/refresh`,
-          {},
+          storedRefreshToken ? { refreshToken: storedRefreshToken } : {},
           { withCredentials: true }
         );
 
@@ -45,6 +52,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         Cookies.remove("accessToken");
+        localStorage.removeItem("refreshToken");
         window.location.href = "/login";
         return Promise.reject(refreshError);
       }
