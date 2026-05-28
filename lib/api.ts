@@ -1,8 +1,9 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Empty base URL = same origin. Next.js rewrites /api/* → backend server.
+// This works on any device without CORS or IP configuration.
+const API_BASE_URL = "";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

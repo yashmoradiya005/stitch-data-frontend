@@ -2,18 +2,42 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { isAuthenticated } from "@/lib/auth";
 import { useCompany } from "@/context/CompanyContext";
+import { useUser } from "@/context/UserContext";
 import { AppLayout } from "@/components/AppLayout";
 import { getEmployees } from "@/lib/employee";
-import { getDailyStitchData, getMonthlyStitchData, getYesterday } from "@/lib/stitchData";
+import { getMonthlyStitchData, getYesterday, StitchEntry } from "@/lib/stitchData";
+
+function entryDateLabel(dateStr: string): string {
+  const today = new Date().toISOString().slice(0, 10);
+  if (dateStr === today) return "Today";
+  if (dateStr === getYesterday()) return "Yesterday";
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+const ENTRY_COLORS = [
+  "bg-blue-500",
+  "bg-emerald-500",
+  "bg-violet-500",
+  "bg-orange-500",
+  "bg-sky-500",
+  "bg-pink-500",
+  "bg-teal-500",
+  "bg-yellow-500",
+];
 
 export default function DashboardPage() {
   const router = useRouter();
   const { currentCompany, companies, loading } = useCompany();
+  const { user } = useUser();
 
   const [employeeCount, setEmployeeCount] = useState<number | null>(null);
-  const [yesterdayStitch, setYesterdayStitch] = useState<number | null>(null);
+  const [monthlyEntries, setMonthlyEntries] = useState<StitchEntry[]>([]);
   const [monthlyStitch, setMonthlyStitch] = useState<number | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
@@ -28,12 +52,11 @@ export default function DashboardPage() {
     const now = new Date();
     Promise.all([
       getEmployees(currentCompany.id),
-      getDailyStitchData(currentCompany.id, getYesterday()),
       getMonthlyStitchData(currentCompany.id, now.getFullYear(), now.getMonth() + 1),
     ])
-      .then(([emps, daily, monthly]) => {
+      .then(([emps, monthly]) => {
         setEmployeeCount(emps.length);
-        setYesterdayStitch(daily.reduce((s, e) => s + e.stitchCount, 0));
+        setMonthlyEntries(monthly);
         setMonthlyStitch(monthly.reduce((s, e) => s + e.stitchCount, 0));
       })
       .catch(() => {})
@@ -51,158 +74,241 @@ export default function DashboardPage() {
     );
   }
 
-  const yesterdayDate = new Date(getYesterday() + "T00:00:00").toLocaleDateString("en-GB", {
-    day: "numeric", month: "short", year: "numeric",
-  });
-  const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const now = new Date();
+  const monthLabel = now.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  const daysElapsed = now.getDate();
+  const dailyAvg = monthlyStitch !== null && daysElapsed > 0
+    ? Math.round(monthlyStitch / daysElapsed)
+    : null;
 
-  const stats = [
+  // Progress vs estimated monthly target (machineCount × 10,000/day × 30 days)
+  const monthlyTarget = currentCompany.machineCount * 10000 * 30;
+  const progressPct = monthlyStitch !== null
+    ? Math.min(100, Math.round((monthlyStitch / monthlyTarget) * 100))
+    : 0;
+
+  // 4 most recent entries this month
+  const recentEntries = [...monthlyEntries]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 4);
+
+  const initials = user?.name?.charAt(0).toUpperCase() ?? "?";
+
+  const quickAccess = [
     {
-      label: "Total Employees",
-      value: employeeCount,
-      sub: "Team members",
+      label: "Team",
+      sub: employeeCount !== null ? `${employeeCount} members` : "—",
       href: "/employees",
+      bg: "bg-blue-500",
+      shadow: "shadow-blue-200",
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       ),
-      gradient: "from-blue-600 to-blue-800",
-      lightBg: "bg-blue-50",
-      textColor: "text-blue-700",
     },
     {
-      label: "Yesterday's Stitches",
-      value: yesterdayStitch,
-      sub: yesterdayDate,
+      label: "Machines",
+      sub: `${currentCompany.machineCount} active`,
       href: "/stitch-data",
+      bg: "bg-emerald-500",
+      shadow: "shadow-emerald-200",
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       ),
-      gradient: "from-violet-500 to-violet-700",
-      lightBg: "bg-violet-50",
-      textColor: "text-violet-700",
     },
     {
-      label: "Monthly Stitches",
-      value: monthlyStitch,
-      sub: monthLabel,
-      href: "/reports",
+      label: "Stitch",
+      sub: "Log data",
+      href: "/stitch-data",
+      bg: "bg-violet-500",
+      shadow: "shadow-violet-200",
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       ),
-      gradient: "from-emerald-500 to-emerald-700",
-      lightBg: "bg-emerald-50",
-      textColor: "text-emerald-700",
+    },
+    {
+      label: "Reports",
+      sub: "View stats",
+      href: "/reports",
+      bg: "bg-orange-500",
+      shadow: "shadow-orange-200",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
     },
   ];
 
   return (
     <AppLayout>
-      <div className="min-h-full flex items-start justify-center">
-        <div className="w-full max-w-5xl mx-auto space-y-4">
+      <div className="space-y-5 pb-2">
 
-          {/* Business Hero Card */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-violet-800 rounded-2xl shadow-lg px-6 py-8 text-white">
-            {/* Decorative circles */}
-            <div className="absolute -top-8 -right-8 w-40 h-40 bg-white/5 rounded-full" />
-            <div className="absolute -bottom-10 -left-6 w-32 h-32 bg-white/5 rounded-full" />
+        {/* ── Page title row ─────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between pt-1">
+          <div>
+            <h1 className="text-[26px] font-black text-gray-900 leading-tight">Dashboard</h1>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+            </p>
+          </div>
+          <div
+            className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-900 to-violet-700 flex items-center justify-center text-white font-bold text-base shadow-sm cursor-pointer"
+            onClick={() => router.push("/profile")}
+          >
+            {initials}
+          </div>
+        </div>
 
-            <div className="relative flex items-center gap-5">
-              <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-3xl font-black shrink-0 border border-white/20">
-                {currentCompany.name.charAt(0).toUpperCase()}
+        {/* ── Hero card ──────────────────────────────────────────────────── */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 p-5 text-white shadow-xl shadow-blue-200">
+          <div className="absolute -top-8 -right-8 w-36 h-36 bg-white/10 rounded-full" />
+          <div className="absolute -bottom-10 -left-5 w-28 h-28 bg-white/10 rounded-full" />
+
+          <div className="relative">
+            <p className="text-xs font-semibold text-blue-100 mb-4">{monthLabel}</p>
+
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                {statsLoading || monthlyStitch === null ? (
+                  <>
+                    <div className="h-10 w-36 bg-white/20 rounded-xl animate-pulse mb-1" />
+                    <div className="h-3 w-28 bg-white/15 rounded-full animate-pulse" />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[42px] font-black leading-none tracking-tight">
+                      {monthlyStitch.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-blue-100 mt-1.5 font-medium">Total stitches this month</p>
+                  </>
+                )}
               </div>
-              <div className="min-w-0">
-                <p className="text-blue-200 text-xs font-medium uppercase tracking-widest mb-1">Active Business</p>
-                <h1 className="text-2xl sm:text-3xl font-bold truncate">{currentCompany.name}</h1>
-                <p className="text-blue-200 text-sm mt-1">
-                  {currentCompany.machineCount} embroidery machine{currentCompany.machineCount !== 1 ? "s" : ""}
-                </p>
+              <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center border border-white/25 shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
               </div>
             </div>
+
+            {/* Progress bar */}
+            <div className="h-1.5 bg-white/25 rounded-full overflow-hidden mb-2">
+              <div
+                className="h-full bg-white rounded-full transition-all duration-700 ease-out"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-blue-100 font-medium">
+                Daily avg:{" "}
+                {dailyAvg !== null
+                  ? dailyAvg.toLocaleString()
+                  : "—"}{" "}
+                stitches
+              </span>
+              <span className="font-bold">{progressPct}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Recent Entries ────────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+              Recent Entries
+            </p>
+            <Link href="/stitch-data" className="text-sm font-semibold text-blue-600">
+              See All
+            </Link>
           </div>
 
-          {/* Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {stats.map((stat) => (
-              <button
-                key={stat.label}
-                onClick={() => router.push(stat.href)}
-                className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 text-left w-full flex flex-col gap-4"
-              >
-                {/* Icon */}
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.gradient} text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200`}>
-                  {stat.icon}
-                </div>
-
-                {/* Value */}
-                <div>
-                  {statsLoading || stat.value === null ? (
-                    <>
-                      <div className="h-8 w-20 bg-gray-100 rounded-lg animate-pulse mb-2" />
-                      <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-3xl font-black text-gray-900 leading-none">
-                        {stat.value.toLocaleString()}
-                      </p>
-                      <p className="text-sm font-medium text-gray-600 mt-1">{stat.label}</p>
-                    </>
-                  )}
-                </div>
-
-                {/* Sub label + arrow */}
-                <div className="flex items-center justify-between mt-auto">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${stat.lightBg} ${stat.textColor}`}>
-                    {stat.sub}
-                  </span>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-300 group-hover:text-gray-500 group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            {statsLoading ? (
+              <div className="p-4 space-y-4">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-gray-100 animate-pulse shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3.5 w-24 bg-gray-100 rounded-full animate-pulse" />
+                      <div className="h-2.5 w-16 bg-gray-100 rounded-full animate-pulse" />
+                    </div>
+                    <div className="h-2.5 w-14 bg-gray-100 rounded-full animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : recentEntries.length === 0 ? (
+              <div className="flex flex-col items-center py-10 gap-2">
+                <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
+                </div>
+                <p className="text-sm font-medium text-gray-500">No entries this month yet</p>
+                <button
+                  onClick={() => router.push("/stitch-data")}
+                  className="mt-1 text-xs font-semibold text-blue-600 bg-blue-50 px-4 py-1.5 rounded-full"
+                >
+                  + Add Stitch Data
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {recentEntries.map((entry, idx) => (
+                  <div key={entry.id} className="flex items-center gap-3 px-4 py-3.5">
+                    <div
+                      className={`w-11 h-11 rounded-2xl ${ENTRY_COLORS[idx % ENTRY_COLORS.length]} flex items-center justify-center text-white text-sm font-bold shrink-0`}
+                    >
+                      {entry.employeeName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-800 truncate">{entry.employeeName}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {entry.stitchCount.toLocaleString()} stitches · Machine {entry.machineNo}
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-400 shrink-0">{entryDateLabel(entry.date)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Quick Access ──────────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+              Quick Access
+            </p>
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-3 px-3" style={{ scrollbarWidth: "none" }}>
+            {quickAccess.map((q) => (
+              <button
+                key={q.label}
+                onClick={() => router.push(q.href)}
+                className="flex flex-col items-center gap-2 shrink-0"
+              >
+                <div
+                  className={`w-[72px] h-[72px] ${q.bg} rounded-3xl flex items-center justify-center shadow-lg ${q.shadow}`}
+                >
+                  {q.icon}
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-bold text-gray-700">{q.label}</p>
+                  <p className="text-[10px] text-gray-400">{q.sub}</p>
                 </div>
               </button>
             ))}
           </div>
-
-          {/* Quick actions row */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => router.push("/stitch-data")}
-              className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3 hover:shadow-md hover:border-blue-100 transition-all text-left group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-blue-900 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-800">Add Stitch Data</p>
-                <p className="text-xs text-gray-400">Log today's production</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => router.push("/employees")}
-              className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3 hover:shadow-md hover:border-blue-100 transition-all text-left group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-blue-900 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-800">Add Employee</p>
-                <p className="text-xs text-gray-400">Register a team member</p>
-              </div>
-            </button>
-          </div>
-
         </div>
+
       </div>
     </AppLayout>
   );
