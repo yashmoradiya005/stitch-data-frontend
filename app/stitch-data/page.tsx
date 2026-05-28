@@ -57,8 +57,8 @@ function AddStitchModal({
     }
   };
 
-  const selectCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none bg-white";
-  const inputCls  = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none";
+  const selectCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none bg-white";
+  const inputCls  = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none";
 
   return (
     <>
@@ -201,8 +201,8 @@ function EditEntryModal({
     }
   };
 
-  const selectCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none bg-white";
-  const inputCls  = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none";
+  const selectCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none bg-white";
+  const inputCls  = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none";
 
   return (
     <>

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { register } from "@/lib/auth";
+import { useUser } from "@/context/UserContext";
+import { useCompany } from "@/context/CompanyContext";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -19,6 +21,8 @@ function EyeIcon({ open }: { open: boolean }) {
 
 export function SignupForm() {
   const router = useRouter();
+  const { setUser } = useUser();
+  const { refreshCompanies } = useCompany();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,7 +47,9 @@ export function SignupForm() {
 
     setLoading(true);
     try {
-      await register({ name, email, password, confirmPassword });
+      const { user } = await register({ name, email, password, confirmPassword });
+      setUser(user);
+      await refreshCompanies();
       router.push("/setup");
     } catch (err: any) {
       setError(err.response?.data?.message || "Sign up failed. Please try again.");

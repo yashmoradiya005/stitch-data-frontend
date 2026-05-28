@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/auth";
 import { useCompany } from "@/context/CompanyContext";
+import { useUser } from "@/context/UserContext";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -21,6 +22,7 @@ function EyeIcon({ open }: { open: boolean }) {
 export function LoginForm() {
   const router = useRouter();
   const { refreshCompanies } = useCompany();
+  const { setUser } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -34,7 +36,8 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      await login({ email, password, rememberMe });
+      const { user } = await login({ email, password, rememberMe });
+      setUser(user);
       await refreshCompanies();
       router.push("/dashboard");
     } catch (err: any) {

@@ -24,3 +24,10 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Ensure all input text is readable in the app theme */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  color: #111827;
+}

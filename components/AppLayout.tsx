@@ -324,19 +324,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") return window.innerWidth >= 768;
     return false;
   });
-  // Desktop icon-only collapse — persisted in localStorage so it survives page navigation
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("sidebar-collapsed") === "true";
-    }
-    return false;
-  });
-  const setCollapsed = (value: boolean) => {
-    setSidebarCollapsed(value);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("sidebar-collapsed", String(value));
-    }
-  };
 
   // On mobile, close sidebar when navigating
   useEffect(() => {
@@ -366,25 +353,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 "fixed inset-y-0 left-0 z-50",
                 "md:relative md:inset-auto md:z-auto md:translate-x-0",
                 "flex flex-col shrink-0 overflow-hidden",
-                "transition-all duration-300 ease-in-out",
+                "transition-transform duration-300 ease-in-out",
                 "bg-gradient-to-b from-blue-900 via-blue-800 to-violet-900",
+                "w-72 md:w-64",
                 sidebarOpen ? "translate-x-0" : "-translate-x-full",
-                "w-72",
-                sidebarCollapsed ? "md:w-16" : "md:w-64",
               ].join(" ")}
             >
               {/* ── Brand row ─────────────────────────────────────────────── */}
-              <div className="flex items-center px-3 py-4 border-b border-white/10 shrink-0 h-[68px]">
+              <div className="flex items-center px-4 py-4 border-b border-white/10 shrink-0 h-[68px]">
                 <button
                   onClick={() => { setSidebarOpen(false); router.push("/dashboard"); }}
-                  className={`flex items-center gap-3 text-left overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "w-0 opacity-0 pointer-events-none" : "flex-1 opacity-100"}`}
+                  className="flex items-center gap-3 flex-1 text-left min-w-0"
                 >
                   <img
                     src="/logo-only.png"
                     alt="StitchDesk"
                     className="h-9 w-9 object-contain shrink-0 bg-white rounded-xl p-1"
                   />
-                  <div className="flex flex-col min-w-0 overflow-hidden">
+                  <div className="flex flex-col min-w-0">
                     <span className="text-base font-black tracking-tight text-white leading-none whitespace-nowrap">
                       Stitch<span className="text-blue-300">Desk</span>
                     </span>
@@ -393,36 +379,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     </span>
                   </div>
                 </button>
-                <button
-                  onClick={() => setCollapsed(!sidebarCollapsed)}
-                  title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white flex items-center justify-center transition-colors shrink-0"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <rect x="2" y="3" width="20" height="18" rx="2" strokeWidth={1.8} />
-                    <line x1="9" y1="3" x2="9" y2="21" strokeWidth={1.8} />
-                    <line x1="12" y1="8" x2="19" y2="8" strokeWidth={1.5} strokeLinecap="round" />
-                    <line x1="12" y1="12" x2="19" y2="12" strokeWidth={1.5} strokeLinecap="round" />
-                    <line x1="12" y1="16" x2="19" y2="16" strokeWidth={1.5} strokeLinecap="round" />
-                  </svg>
-                </button>
               </div>
 
               {/* ── Company card ──────────────────────────────────────────── */}
               <div className="px-3 py-4 border-b border-white/10 shrink-0">
-                <div className="md:hidden flex items-center justify-between mb-3 overflow-hidden">
-                  <div className={`transition-all duration-300 overflow-hidden ${sidebarCollapsed ? "max-w-0 opacity-0" : "max-w-full opacity-100"}`}>
-                    <BusinessSwitcher />
-                  </div>
-                  <button
-                    onClick={() => setSidebarOpen(false)}
-                    className={`p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition shrink-0 ${sidebarCollapsed ? "hidden" : ""}`}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
                 <div className="flex items-center gap-3">
                   <div
                     className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-black shrink-0 shadow-lg"
@@ -430,7 +390,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   >
                     {currentCompany.name.charAt(0).toUpperCase()}
                   </div>
-                  <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "max-w-0 opacity-0" : "max-w-full opacity-100"}`}>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-white truncate">{currentCompany.name}</p>
                       <p className="text-xs text-blue-300 mt-0.5 whitespace-nowrap">{currentCompany.machineCount} machine{currentCompany.machineCount !== 1 ? "s" : ""}</p>
@@ -450,9 +410,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
               {/* ── Navigation ────────────────────────────────────────────── */}
               <nav className="flex-1 px-2 py-4 overflow-y-auto">
-                <div className={`overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "max-h-0 opacity-0" : "max-h-8 opacity-100"}`}>
-                  <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.12em] px-3 mb-3">Menu</p>
-                </div>
+                <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.12em] px-3 mb-3">Menu</p>
                 <div className="space-y-1">
                   {sidebarItems.map((item) => {
                     const active = pathname === item.href;
@@ -460,7 +418,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       <Link
                         key={item.href}
                         href={item.href}
-                        title={sidebarCollapsed ? item.label : undefined}
                         className={[
                           "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150",
                           active
@@ -469,16 +426,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         ].join(" ")}
                       >
                         {active && (
-                          <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 ${item.activeBar} rounded-r-full transition-opacity duration-300 ${sidebarCollapsed ? "opacity-0" : "opacity-100"}`} />
+                          <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 ${item.activeBar} rounded-r-full`} />
                         )}
                         <span className={`shrink-0 ${active ? item.activeIcon : "text-white/35"}`}>
                           {item.icon}
                         </span>
-                        <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100"}`}>
+                        <span className="whitespace-nowrap truncate">
                           {item.label}
                         </span>
                         {active && (
-                          <span className={`ml-auto w-1.5 h-1.5 rounded-full ${item.activeDot} shrink-0 transition-all duration-300 ${sidebarCollapsed ? "opacity-0 scale-0" : "opacity-100 scale-100"}`} />
+                          <span className={`ml-auto w-1.5 h-1.5 rounded-full ${item.activeDot} shrink-0`} />
                         )}
                       </Link>
                     );
@@ -495,7 +452,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   >
                     {user?.name?.charAt(0).toUpperCase() ?? "?"}
                   </div>
-                  <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "max-w-0 opacity-0" : "max-w-full opacity-100"}`}>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-white/80 truncate">{user?.name}</p>
                       <p className="text-[10px] text-white/35 truncate">{user?.email}</p>
