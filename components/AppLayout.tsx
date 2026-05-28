@@ -377,14 +377,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center px-3 py-4 border-b border-white/10 shrink-0 h-[68px]">
                 <button
                   onClick={() => { setSidebarOpen(false); router.push("/dashboard"); }}
-                  className="flex items-center gap-3 flex-1 text-left min-w-0 overflow-hidden"
+                  className={`flex items-center gap-3 text-left overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "w-0 opacity-0 pointer-events-none" : "flex-1 opacity-100"}`}
                 >
                   <img
                     src="/logo-only.png"
                     alt="StitchDesk"
                     className="h-9 w-9 object-contain shrink-0 bg-white rounded-xl p-1"
                   />
-                  <div className={`flex flex-col min-w-0 overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "max-w-0 opacity-0" : "max-w-full opacity-100"}`}>
+                  <div className="flex flex-col min-w-0 overflow-hidden">
                     <span className="text-base font-black tracking-tight text-white leading-none whitespace-nowrap">
                       Stitch<span className="text-blue-300">Desk</span>
                     </span>
