@@ -279,45 +279,47 @@ export default function ReportsPage() {
             )}
           </div>
 
-          {/* Header */}
-          <div className="grid grid-cols-[28px_1fr_90px_90px_80px] gap-2 px-5 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-            <span>#</span>
-            <span>Employee</span>
-            <span className="text-center">Entries</span>
-            <span className="text-right">Stitches</span>
-            <span className="text-right">Bonus</span>
-          </div>
+          <div className="overflow-x-auto">
+            {/* Header */}
+            <div className="grid grid-cols-[28px_1fr_90px_90px_80px] min-w-[380px] gap-2 px-5 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              <span>#</span>
+              <span>Employee</span>
+              <span className="text-center">Entries</span>
+              <span className="text-right">Stitches</span>
+              <span className="text-right">Bonus</span>
+            </div>
 
-          {loading ? (
-            <div>
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="grid grid-cols-[28px_1fr_90px_90px_80px] gap-2 px-5 py-4 animate-pulse border-b border-gray-50">
-                  <div className="h-3 bg-gray-100 rounded" />
-                  <div className="h-3 bg-gray-100 rounded w-2/3" />
-                  <div className="h-3 bg-gray-100 rounded" />
-                  <div className="h-3 bg-gray-100 rounded" />
-                  <div className="h-3 bg-gray-100 rounded" />
-                </div>
-              ))}
-            </div>
-          ) : employeeData.length === 0 ? (
-            <div className="py-10 text-center text-sm text-gray-400">No data for this period</div>
-          ) : (
-            <div>
-              {employeeData.map((emp, i) => {
-                const medals = ["🥇", "🥈", "🥉"];
-                return (
-                  <div key={emp.name} className="grid grid-cols-[28px_1fr_90px_90px_80px] items-center gap-2 px-5 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition text-sm">
-                    <span className="text-base">{medals[i] ?? <span className="text-xs text-gray-400 font-medium">{i + 1}</span>}</span>
-                    <span className="font-medium text-gray-800 truncate">{emp.name}</span>
-                    <span className="text-center text-gray-500">{emp.entries}</span>
-                    <span className="text-right font-semibold text-gray-800">{emp.stitches.toLocaleString()}</span>
-                    <span className="text-right font-bold text-blue-900">₹{emp.bonus.toFixed(0)}</span>
+            {loading ? (
+              <div className="min-w-[380px]">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="grid grid-cols-[28px_1fr_90px_90px_80px] gap-2 px-5 py-4 animate-pulse border-b border-gray-50">
+                    <div className="h-3 bg-gray-100 rounded" />
+                    <div className="h-3 bg-gray-100 rounded w-2/3" />
+                    <div className="h-3 bg-gray-100 rounded" />
+                    <div className="h-3 bg-gray-100 rounded" />
+                    <div className="h-3 bg-gray-100 rounded" />
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            ) : employeeData.length === 0 ? (
+              <div className="py-10 text-center text-sm text-gray-400">No data for this period</div>
+            ) : (
+              <div className="min-w-[380px]">
+                {employeeData.map((emp, i) => {
+                  const medals = ["🥇", "🥈", "🥉"];
+                  return (
+                    <div key={emp.name} className="grid grid-cols-[28px_1fr_90px_90px_80px] items-center gap-2 px-5 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition text-sm">
+                      <span className="text-base">{medals[i] ?? <span className="text-xs text-gray-400 font-medium">{i + 1}</span>}</span>
+                      <span className="font-medium text-gray-800 truncate">{emp.name}</span>
+                      <span className="text-center text-gray-500">{emp.entries}</span>
+                      <span className="text-right font-semibold text-gray-800">{emp.stitches.toLocaleString()}</span>
+                      <span className="text-right font-bold text-blue-900">₹{emp.bonus.toFixed(0)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Machine utilization */}

@@ -515,32 +515,7 @@ export default function StitchDataPage() {
             )}
           </div>
 
-          {/* Table header */}
-          <div className="grid grid-cols-[28px_1fr_60px_60px_70px_70px_80px_72px] items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-            <span className="text-center">#</span>
-            <span>Employee</span>
-            <span className="text-center">Machine</span>
-            <span className="text-center">Shift</span>
-            <span className="text-center">Stitch</span>
-            <span className="text-center">Extra</span>
-            <span className="text-right">Bonus</span>
-            <span></span>
-          </div>
-
-          {loadingEntries ? (
-            <div className="divide-y divide-gray-50">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-3 px-4 py-4 animate-pulse">
-                  <div className="w-6 h-3 bg-gray-100 rounded shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3.5 bg-gray-100 rounded w-1/3" />
-                    <div className="h-2.5 bg-gray-100 rounded w-1/4" />
-                  </div>
-                  <div className="h-8 w-16 bg-gray-100 rounded-lg" />
-                </div>
-              ))}
-            </div>
-          ) : entries.length === 0 ? (
+          {entries.length === 0 && !loadingEntries ? (
             <div className="py-14 flex flex-col items-center text-center px-6">
               <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -558,16 +533,44 @@ export default function StitchDataPage() {
               </button>
             </div>
           ) : (
-            <div>
-              {entries.map((entry, i) => (
-                <EntryRow
-                  key={entry.id}
-                  entry={entry}
-                  index={i}
-                  onEdit={() => setEditEntry(entry)}
-                  onDelete={() => setDeleteTarget(entry)}
-                />
-              ))}
+            <div className="overflow-x-auto">
+              {/* Table header */}
+              <div className="grid grid-cols-[28px_1fr_60px_60px_70px_70px_80px_72px] min-w-[530px] items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                <span className="text-center">#</span>
+                <span>Employee</span>
+                <span className="text-center">Machine</span>
+                <span className="text-center">Shift</span>
+                <span className="text-center">Stitch</span>
+                <span className="text-center">Extra</span>
+                <span className="text-right">Bonus</span>
+                <span></span>
+              </div>
+              {loadingEntries ? (
+                <div className="divide-y divide-gray-50 min-w-[530px]">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-4 animate-pulse">
+                      <div className="w-6 h-3 bg-gray-100 rounded shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3.5 bg-gray-100 rounded w-1/3" />
+                        <div className="h-2.5 bg-gray-100 rounded w-1/4" />
+                      </div>
+                      <div className="h-8 w-16 bg-gray-100 rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="min-w-[530px]">
+                  {entries.map((entry, i) => (
+                    <EntryRow
+                      key={entry.id}
+                      entry={entry}
+                      index={i}
+                      onEdit={() => setEditEntry(entry)}
+                      onDelete={() => setDeleteTarget(entry)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

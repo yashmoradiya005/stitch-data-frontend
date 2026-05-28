@@ -54,7 +54,7 @@ export function SignupForm() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 sm:p-8">
         <div className="flex flex-col items-center mb-8">
           <img src="/logo.png" alt="StitchDesk" className="h-24 w-auto object-contain mb-1" />
         </div>

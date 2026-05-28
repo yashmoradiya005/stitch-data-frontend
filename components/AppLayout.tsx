@@ -536,18 +536,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}
 
             {currentCompany && (
-              <div className="hidden sm:block">
+              <div className="flex-1 min-w-0">
                 <BusinessSwitcher />
               </div>
             )}
 
-            <div className="ml-auto">
+            <div className={currentCompany ? "" : "ml-auto"}>
               <ProfileMenu />
             </div>
           </header>
 
           {/* Main content */}
-          <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
+          <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 pb-[calc(12px+env(safe-area-inset-bottom))]">
             {children}
           </main>
         </div>
