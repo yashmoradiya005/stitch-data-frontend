@@ -113,7 +113,8 @@ export function SignupForm() {
                 disabled={loading}
               />
               <button type="button" onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition" tabIndex={-1}>
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 active:text-gray-700 active:scale-90 transition-all"
+                tabIndex={-1} aria-label={showPassword ? "Hide password" : "Show password"}>
                 <EyeIcon open={showPassword} />
               </button>
             </div>
@@ -133,7 +134,8 @@ export function SignupForm() {
                 disabled={loading}
               />
               <button type="button" onClick={() => setShowConfirm((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition" tabIndex={-1}>
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 active:text-gray-700 active:scale-90 transition-all"
+                tabIndex={-1} aria-label={showConfirm ? "Hide password" : "Show password"}>
                 <EyeIcon open={showConfirm} />
               </button>
             </div>

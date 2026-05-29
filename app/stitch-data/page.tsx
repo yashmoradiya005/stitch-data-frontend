@@ -38,8 +38,6 @@ function AddStitchModal({
 
   const extraBonusCount = useMemo(() => Math.max(0, (parseInt(stitchCount) || 0) - bonusRange), [stitchCount, bonusRange]);
   const bonusEarned = useMemo(() => extraBonusCount * stitchPerPaisa, [extraBonusCount, stitchPerPaisa]);
-  const machineOptions = Array.from({ length: machineCount }, (_, i) => i + 1);
-
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     setError("");
@@ -101,10 +99,20 @@ function AddStitchModal({
                   <option value="day">☀️ Day</option>
                   <option value="night">🌙 Night</option>
                 </select></div>
-              <div><label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Machine No</label>
-                <select value={machineNo} onChange={(e) => setMachineNo(Number(e.target.value))} className={selectCls} disabled={loading}>
-                  {machineOptions.map((n) => <option key={n} value={n}>Machine {n}</option>)}
-                </select></div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+                  Machine No <span className="text-gray-300 font-normal normal-case">/ {machineCount}</span>
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => setMachineNo(v => Math.max(1, v - 1))} disabled={loading || machineNo <= 1}
+                    className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-700 disabled:opacity-40 transition font-bold text-lg shrink-0">−</button>
+                  <div className="flex-1 py-2 text-sm font-bold text-center text-gray-900 bg-gray-50 border border-gray-200 rounded-lg">
+                    M-{machineNo}
+                  </div>
+                  <button type="button" onClick={() => setMachineNo(v => Math.min(machineCount, v + 1))} disabled={loading || machineNo >= machineCount}
+                    className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-700 disabled:opacity-40 transition font-bold text-lg shrink-0">+</button>
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Bonus Range</label>
@@ -177,7 +185,6 @@ function EditEntryModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const machineOptions = Array.from({ length: machineCount }, (_, i) => i + 1);
   const extraBonusCount = useMemo(() => Math.max(0, (parseInt(stitchCount) || 0) - bonusRange), [stitchCount, bonusRange]);
   const bonusEarned = useMemo(() => extraBonusCount * stitchPerPaisa, [extraBonusCount, stitchPerPaisa]);
 
@@ -240,10 +247,20 @@ function EditEntryModal({
                   <option value="day">☀️ Day</option>
                   <option value="night">🌙 Night</option>
                 </select></div>
-              <div><label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Machine No</label>
-                <select value={machineNo} onChange={(e) => setMachineNo(Number(e.target.value))} className={selectCls} disabled={loading}>
-                  {machineOptions.map((n) => <option key={n} value={n}>Machine {n}</option>)}
-                </select></div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+                  Machine No <span className="text-gray-300 font-normal normal-case">/ {machineCount}</span>
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => setMachineNo(v => Math.max(1, v - 1))} disabled={loading || machineNo <= 1}
+                    className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-700 disabled:opacity-40 transition font-bold text-lg shrink-0">−</button>
+                  <div className="flex-1 py-2 text-sm font-bold text-center text-gray-900 bg-gray-50 border border-gray-200 rounded-lg">
+                    M-{machineNo}
+                  </div>
+                  <button type="button" onClick={() => setMachineNo(v => Math.min(machineCount, v + 1))} disabled={loading || machineNo >= machineCount}
+                    className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-700 disabled:opacity-40 transition font-bold text-lg shrink-0">+</button>
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Bonus Range</label>
@@ -290,9 +307,9 @@ function EditEntryModal({
   );
 }
 
-// ─── Entry Row ────────────────────────────────────────────────────────────────
+// ─── Entry Card ───────────────────────────────────────────────────────────────
 
-function EntryRow({
+function EntryCard({
   entry, index, onEdit, onDelete,
 }: {
   entry: StitchEntry;
@@ -302,36 +319,57 @@ function EntryRow({
 }) {
   const isDay = entry.shift === "day";
   return (
-    <div className="grid grid-cols-[28px_1fr_60px_60px_70px_70px_80px_72px] items-center gap-2 px-4 py-3 hover:bg-gray-50 transition text-sm border-b border-gray-50 last:border-0 group">
-      <span className="text-xs text-gray-400 font-medium text-center">{index + 1}</span>
-      <span className="font-medium text-gray-800 truncate">{entry.employeeName}</span>
-      <span className="text-center text-gray-600 font-medium">M-{entry.machineNo}</span>
-      <span className={`text-center text-xs font-semibold px-1.5 py-0.5 rounded-md ${isDay ? "bg-amber-50 text-amber-700" : "bg-indigo-50 text-indigo-700"}`}>
-        {isDay ? "Day" : "Night"}
-      </span>
-      <span className="text-center font-semibold text-gray-800">{entry.stitchCount.toLocaleString()}</span>
-      <span className="text-center font-semibold text-violet-700">{entry.extraBonusCount.toLocaleString()}</span>
-      <span className="text-right font-bold text-blue-900">₹{Number(entry.bonusEarned).toFixed(2)}</span>
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition">
-        <button
-          onClick={onEdit}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-900 hover:bg-blue-50 transition"
-          title="Edit"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-        </button>
-        <button
-          onClick={onDelete}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
-          title="Delete"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+    <div className="px-4 py-3.5 border-b border-gray-50 last:border-0 active:bg-gray-50/70 transition-colors">
+      {/* Top row: index + name + machine + shift */}
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-xs text-gray-300 font-bold w-5 text-center shrink-0">{index + 1}</span>
+        <p className="font-bold text-gray-800 text-sm flex-1 truncate">{entry.employeeName}</p>
+        <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-lg shrink-0">
+          M-{entry.machineNo}
+        </span>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-lg shrink-0 ${isDay ? "bg-amber-50 text-amber-600" : "bg-indigo-50 text-indigo-600"}`}>
+          {isDay ? "☀ Day" : "☾ Night"}
+        </span>
+      </div>
+
+      {/* Bottom row: stats + actions */}
+      <div className="flex items-center gap-2 ml-7">
+        {/* Stitch */}
+        <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2 text-center">
+          <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide leading-none mb-0.5">Stitch</p>
+          <p className="text-sm font-black text-gray-700">{entry.stitchCount.toLocaleString()}</p>
+        </div>
+        {/* Extra */}
+        <div className="flex-1 bg-violet-50 rounded-xl px-3 py-2 text-center">
+          <p className="text-[9px] font-semibold text-violet-400 uppercase tracking-wide leading-none mb-0.5">Extra</p>
+          <p className="text-sm font-black text-violet-700">{entry.extraBonusCount.toLocaleString()}</p>
+        </div>
+        {/* Bonus */}
+        <div className="flex-1 bg-blue-50 rounded-xl px-3 py-2 text-center">
+          <p className="text-[9px] font-semibold text-blue-400 uppercase tracking-wide leading-none mb-0.5">Bonus</p>
+          <p className="text-sm font-black text-blue-900">₹{Number(entry.bonusEarned).toFixed(0)}</p>
+        </div>
+        {/* Actions */}
+        <div className="flex flex-col gap-1.5 shrink-0">
+          <button
+            onClick={onEdit}
+            className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center active:scale-90 transition-transform"
+            aria-label="Edit entry"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+          <button
+            onClick={onDelete}
+            className="w-8 h-8 rounded-xl bg-red-50 text-red-500 flex items-center justify-center active:scale-90 transition-transform"
+            aria-label="Delete entry"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -515,7 +553,26 @@ export default function StitchDataPage() {
             )}
           </div>
 
-          {entries.length === 0 && !loadingEntries ? (
+          {loadingEntries ? (
+            <div className="divide-y divide-gray-50">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="px-4 py-3.5 animate-pulse">
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <div className="w-5 h-3 bg-gray-100 rounded shrink-0" />
+                    <div className="flex-1 h-4 bg-gray-100 rounded w-2/5" />
+                    <div className="w-10 h-5 bg-gray-100 rounded-lg" />
+                    <div className="w-14 h-5 bg-gray-100 rounded-lg" />
+                  </div>
+                  <div className="flex gap-2 ml-7">
+                    <div className="flex-1 h-12 bg-gray-100 rounded-xl" />
+                    <div className="flex-1 h-12 bg-gray-100 rounded-xl" />
+                    <div className="flex-1 h-12 bg-gray-100 rounded-xl" />
+                    <div className="w-8 h-[52px] bg-gray-100 rounded-xl" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : entries.length === 0 ? (
             <div className="py-14 flex flex-col items-center text-center px-6">
               <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -533,44 +590,16 @@ export default function StitchDataPage() {
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              {/* Table header */}
-              <div className="grid grid-cols-[28px_1fr_60px_60px_70px_70px_80px_72px] min-w-[530px] items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                <span className="text-center">#</span>
-                <span>Employee</span>
-                <span className="text-center">Machine</span>
-                <span className="text-center">Shift</span>
-                <span className="text-center">Stitch</span>
-                <span className="text-center">Extra</span>
-                <span className="text-right">Bonus</span>
-                <span></span>
-              </div>
-              {loadingEntries ? (
-                <div className="divide-y divide-gray-50 min-w-[530px]">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-4 animate-pulse">
-                      <div className="w-6 h-3 bg-gray-100 rounded shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-3.5 bg-gray-100 rounded w-1/3" />
-                        <div className="h-2.5 bg-gray-100 rounded w-1/4" />
-                      </div>
-                      <div className="h-8 w-16 bg-gray-100 rounded-lg" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="min-w-[530px]">
-                  {entries.map((entry, i) => (
-                    <EntryRow
-                      key={entry.id}
-                      entry={entry}
-                      index={i}
-                      onEdit={() => setEditEntry(entry)}
-                      onDelete={() => setDeleteTarget(entry)}
-                    />
-                  ))}
-                </div>
-              )}
+            <div>
+              {entries.map((entry, i) => (
+                <EntryCard
+                  key={entry.id}
+                  entry={entry}
+                  index={i}
+                  onEdit={() => setEditEntry(entry)}
+                  onDelete={() => setDeleteTarget(entry)}
+                />
+              ))}
             </div>
           )}
         </div>

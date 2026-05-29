@@ -64,12 +64,22 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
   });
 
   const { accessToken, refreshToken, user } = response.data;
-  Cookies.set("accessToken", accessToken, {
-    expires: credentials.rememberMe ? 7 : 1,
-    sameSite: "Strict",
-    secure: process.env.NODE_ENV === "production",
-  });
-  if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+  if (credentials.rememberMe) {
+    // Persistent: 7-day cookie + store refresh token so session survives browser restarts
+    Cookies.set("accessToken", accessToken, {
+      expires: 7,
+      sameSite: "Strict",
+      secure: process.env.NODE_ENV === "production",
+    });
+    if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+  } else {
+    // Session only: no expires = cookie cleared when browser closes, no refresh token stored
+    Cookies.set("accessToken", accessToken, {
+      sameSite: "Strict",
+      secure: process.env.NODE_ENV === "production",
+    });
+    localStorage.removeItem("refreshToken");
+  }
   saveUser(user);
   return { accessToken, user };
 }
