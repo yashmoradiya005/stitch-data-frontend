@@ -25,6 +25,21 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
+// localStorage key — survives Android WebView app kills; cookie is a web fallback
+const LS_TOKEN_KEY = "accessToken";
+
+function saveToken(token: string, cookieExpireDays?: number) {
+  // Always write to localStorage so Capacitor retains it across app restarts
+  localStorage.setItem(LS_TOKEN_KEY, token);
+  // Also set a cookie for web (SSR / middleware compatibility)
+  const opts = {
+    sameSite: "Strict" as const,
+    secure: process.env.NODE_ENV === "production",
+    ...(cookieExpireDays ? { expires: cookieExpireDays } : {}),
+  };
+  Cookies.set("accessToken", token, opts);
+}
+
 function saveUser(user: AuthUser) {
   localStorage.setItem("user", JSON.stringify(user));
 }
@@ -38,6 +53,19 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
+// Check localStorage first (mobile), fall back to cookie (web)
+export function getToken(): string | null {
+  if (typeof localStorage !== "undefined") {
+    const ls = localStorage.getItem(LS_TOKEN_KEY);
+    if (ls) return ls;
+  }
+  return Cookies.get("accessToken") || null;
+}
+
+export function isAuthenticated(): boolean {
+  return !!getToken();
+}
+
 export async function register(credentials: RegisterCredentials): Promise<AuthResponse> {
   const response = await apiClient.post("/api/auth/register", {
     name: credentials.name,
@@ -47,11 +75,7 @@ export async function register(credentials: RegisterCredentials): Promise<AuthRe
   });
 
   const { accessToken, refreshToken, user } = response.data;
-  Cookies.set("accessToken", accessToken, {
-    expires: 1,
-    sameSite: "Strict",
-    secure: process.env.NODE_ENV === "production",
-  });
+  saveToken(accessToken, 7);
   if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
   saveUser(user);
   return { accessToken, user };
@@ -64,22 +88,19 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
   });
 
   const { accessToken, refreshToken, user } = response.data;
+
   if (credentials.rememberMe) {
-    // Persistent: 7-day cookie + store refresh token so session survives browser restarts
-    Cookies.set("accessToken", accessToken, {
-      expires: 7,
-      sameSite: "Strict",
-      secure: process.env.NODE_ENV === "production",
-    });
-    if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+    // Web: 7-day persistent cookie. Mobile: localStorage already persists.
+    saveToken(accessToken, 7);
   } else {
-    // Session only: no expires = cookie cleared when browser closes, no refresh token stored
-    Cookies.set("accessToken", accessToken, {
-      sameSite: "Strict",
-      secure: process.env.NODE_ENV === "production",
-    });
-    localStorage.removeItem("refreshToken");
+    // Web: session cookie (cleared on browser close). Mobile: localStorage keeps it.
+    saveToken(accessToken);
   }
+
+  // Always store refresh token — on mobile this is essential to renew the
+  // access token after an app restart clears the in-memory session.
+  if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+
   saveUser(user);
   return { accessToken, user };
 }
@@ -90,18 +111,11 @@ export async function logout(): Promise<void> {
   } catch (error) {
     console.error("Logout error:", error);
   } finally {
+    localStorage.removeItem(LS_TOKEN_KEY);
     Cookies.remove("accessToken");
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("user");
     localStorage.removeItem("currentCompanyId");
-    localStorage.removeItem("refreshToken");
     window.location.href = "/login";
   }
-}
-
-export function getToken(): string | null {
-  return Cookies.get("accessToken") || null;
-}
-
-export function isAuthenticated(): boolean {
-  return !!getToken();
 }

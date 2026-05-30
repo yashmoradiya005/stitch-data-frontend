@@ -13,16 +13,25 @@ export const apiClient = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor to add auth token
+// Read token from localStorage first (survives Android app kill), fallback to cookie
+function getStoredToken(): string | null {
+  if (typeof localStorage !== "undefined") {
+    const ls = localStorage.getItem("accessToken");
+    if (ls) return ls;
+  }
+  return Cookies.get("accessToken") || null;
+}
+
+// Request interceptor — attach token to every request
 apiClient.interceptors.request.use((config) => {
-  const token = Cookies.get("accessToken");
+  const token = getStoredToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Response interceptor for token refresh
+// Response interceptor — silently refresh expired access token
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -32,8 +41,8 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // Web: httpOnly cookie is forwarded via proxy
-        // Mobile: send refresh token from localStorage in request body (cookie won't travel cross-origin)
+        // Web: httpOnly cookie forwarded via proxy
+        // Mobile: send refresh token from localStorage (cookie won't travel cross-origin)
         const storedRefreshToken =
           typeof localStorage !== "undefined"
             ? localStorage.getItem("refreshToken")
@@ -46,13 +55,17 @@ apiClient.interceptors.response.use(
         );
 
         const newToken = response.data.accessToken;
+
+        // Persist new token in both places so next app restart still works
+        localStorage.setItem("accessToken", newToken);
         Cookies.set("accessToken", newToken);
 
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        Cookies.remove("accessToken");
+        localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
+        Cookies.remove("accessToken");
         window.location.href = "/login";
         return Promise.reject(refreshError);
       }
