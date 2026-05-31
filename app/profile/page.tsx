@@ -93,17 +93,17 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     <>
       <div className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col max-h-[90vh]">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
             <div>
               <h2 className="text-base font-bold text-gray-900">Change Password</h2>
               <p className="text-xs text-gray-400 mt-0.5">Choose a strong, unique password</p>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 active:scale-90 transition-transform"
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 text-gray-400 active:scale-90 transition-transform"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -112,7 +112,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Body */}
-          <div className="px-5 py-5">
+          <div className="px-5 py-5 overflow-y-auto">
             {success ? (
               <div className="flex flex-col items-center text-center py-6">
                 <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
