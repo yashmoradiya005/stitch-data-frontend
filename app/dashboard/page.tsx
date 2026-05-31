@@ -5,145 +5,37 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { isAuthenticated } from "@/lib/auth";
 import { useCompany } from "@/context/CompanyContext";
+import { useTheme } from "@/context/ThemeContext";
 import { AppLayout } from "@/components/AppLayout";
-import { getMonthlyStitchData, getYesterday, StitchEntry } from "@/lib/stitchData";
+import { getMonthlyStitchSummary, getYesterday, MonthlyStitchSummary } from "@/lib/stitchData";
+import { t, fmt, money, greet } from "@/lib/i18n";
+import { useCountUp } from "@/lib/useCountUp";
+import Sparkline from "@/components/sd/Sparkline";
+import Bars from "@/components/sd/Bars";
+import Avatar, { nameToGrad } from "@/components/sd/Avatar";
+import * as I from "@/components/sd/Icons";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function entryDateLabel(dateStr: string): string {
-  const today = new Date().toISOString().slice(0, 10);
-  if (dateStr === today) return "Today";
-  if (dateStr === getYesterday()) return "Yesterday";
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function fmtDate(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-function groupByDate(entries: StitchEntry[]) {
-  const map: Record<string, number> = {};
-  for (const e of entries) map[e.date] = (map[e.date] ?? 0) + e.stitchCount;
-  return Object.entries(map)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, total]) => ({ date, total }));
+function entryDateLabel(dateStr: string, lang: "en" | "gu"): string {
+  const today = localDateKey(new Date());
+  if (dateStr === today) return t("today", lang);
+  if (dateStr === getYesterday()) return t("yesterday", lang);
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
-
-function groupByEmployee(entries: StitchEntry[]) {
-  const map: Record<string, { name: string; stitches: number; bonus: number }> = {};
-  for (const e of entries) {
-    if (!map[e.employeeId]) map[e.employeeId] = { name: e.employeeName, stitches: 0, bonus: 0 };
-    map[e.employeeId].stitches += e.stitchCount;
-    map[e.employeeId].bonus += Number(e.bonusEarned);
-  }
-  return Object.values(map).sort((a, b) => b.stitches - a.stitches);
-}
-
-function groupByMachine(entries: StitchEntry[]) {
-  const map: Record<number, number> = {};
-  for (const e of entries) map[e.machineNo] = (map[e.machineNo] ?? 0) + e.stitchCount;
-  return Object.entries(map)
-    .sort(([, a], [, b]) => b - a)
-    .map(([machine, total]) => ({ machine: Number(machine), total }));
-}
-
-// ─── Bar Chart ────────────────────────────────────────────────────────────────
-
-function BarChart({ data }: { data: { date: string; total: number }[] }) {
-  const show = data.slice(-10);
-  const max = Math.max(...show.map((d) => d.total), 1);
-
-  if (show.length === 0) {
-    return (
-      <div className="h-40 flex flex-col items-center justify-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-        <p className="text-xs text-gray-400">No entries yet this month</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-end gap-2 w-full" style={{ height: "148px" }}>
-      {show.map((d) => {
-        const barH = Math.max(8, (d.total / max) * 104);
-        const isMax = d.total === max;
-        const date = new Date(d.date + "T00:00:00");
-        const dayNum = date.getDate();
-        const dayName = date.toLocaleDateString("en", { weekday: "short" }).slice(0, 3);
-        const label = d.total >= 1000 ? `${(d.total / 1000).toFixed(1)}k` : String(d.total);
-
-        return (
-          <div key={d.date} className="flex-1 flex flex-col items-center min-w-0" style={{ gap: 3 }}>
-            {/* Count label above bar */}
-            <span className={`text-[9px] font-black leading-none tabular-nums ${isMax ? "text-violet-600" : "text-gray-400"}`}>
-              {label}
-            </span>
-            {/* Bar */}
-            <div
-              className="w-full rounded-t-lg"
-              style={{
-                height: `${barH}px`,
-                background: isMax
-                  ? "linear-gradient(180deg, #7c3aed 0%, #2563eb 100%)"
-                  : "linear-gradient(180deg, #93c5fd 0%, #3b82f6 100%)",
-              }}
-            />
-            {/* Day number */}
-            <span className={`text-[10px] font-bold leading-none ${isMax ? "text-violet-600" : "text-gray-600"}`}>{dayNum}</span>
-            {/* Day name */}
-            <span className="text-[8px] text-gray-400 leading-none">{dayName}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Donut Chart ──────────────────────────────────────────────────────────────
-
-function DonutChart({ day, night }: { day: number; night: number }) {
-  const total = day + night;
-  if (total === 0) {
-    return (
-      <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
-        No data
-      </div>
-    );
-  }
-  const r = 40;
-  const circ = 2 * Math.PI * r;
-  const dayArc = (day / total) * circ;
-  return (
-    <svg width="96" height="96" viewBox="0 0 96 96">
-      <circle cx="48" cy="48" r={r} fill="none" stroke="#ddd6fe" strokeWidth="14" />
-      <circle cx="48" cy="48" r={r} fill="none" stroke="#1e3a8a" strokeWidth="14"
-        strokeDasharray={`${dayArc} ${circ}`}
-        strokeDashoffset={circ / 4}
-        strokeLinecap="round"
-      />
-      <text x="48" y="45" textAnchor="middle" fill="#1e3a8a" fontSize="12" fontWeight="800">
-        {Math.round((day / total) * 100)}%
-      </text>
-      <text x="48" y="57" textAnchor="middle" fill="#9ca3af" fontSize="8">Day</text>
-    </svg>
-  );
-}
-
-// ─── Entry color palette ──────────────────────────────────────────────────────
-
-const ENTRY_COLORS = ["bg-blue-500","bg-emerald-500","bg-violet-500","bg-orange-500","bg-sky-500","bg-pink-500","bg-teal-500","bg-yellow-500"];
-const MEDALS = ["🥇", "🥈", "🥉"];
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const router = useRouter();
   const { currentCompany, companies, loading } = useCompany();
+  const { lang } = useTheme();
 
-  const [monthlyEntries, setMonthlyEntries] = useState<StitchEntry[]>([]);
-  const [monthlyStitch, setMonthlyStitch] = useState<number | null>(null);
+  const [summary, setSummary] = useState<MonthlyStitchSummary | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
@@ -155,293 +47,262 @@ export default function DashboardPage() {
     if (!currentCompany) return;
     setStatsLoading(true);
     const now = new Date();
-    getMonthlyStitchData(currentCompany.id, now.getFullYear(), now.getMonth() + 1)
-      .then((monthly) => {
-        setMonthlyEntries(monthly);
-        setMonthlyStitch(monthly.reduce((s, e) => s + e.stitchCount, 0));
-      })
-      .catch(() => {})
+    getMonthlyStitchSummary(currentCompany.id, now.getFullYear(), now.getMonth() + 1)
+      .then(setSummary)
+      .catch(() => setSummary(null))
       .finally(() => setStatsLoading(false));
   }, [currentCompany]);
 
-  // All hooks before any early return
-  const activeEmployeeCount = useMemo(() => new Set(monthlyEntries.map((e) => e.employeeId)).size, [monthlyEntries]);
-  const totalBonus = useMemo(() => monthlyEntries.reduce((s, e) => s + Number(e.bonusEarned), 0), [monthlyEntries]);
-  const topEmployees = useMemo(() => groupByEmployee(monthlyEntries).slice(0, 3), [monthlyEntries]);
-  const dailyData = useMemo(() => groupByDate(monthlyEntries), [monthlyEntries]);
-  const machineData = useMemo(() => groupByMachine(monthlyEntries), [monthlyEntries]);
-  const dayCount = useMemo(() => monthlyEntries.filter((e) => e.shift === "day").reduce((s, e) => s + e.stitchCount, 0), [monthlyEntries]);
-  const nightCount = useMemo(() => monthlyEntries.filter((e) => e.shift === "night").reduce((s, e) => s + e.stitchCount, 0), [monthlyEntries]);
-  const recentEntries = useMemo(
-    () => [...monthlyEntries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 4),
-    [monthlyEntries]
-  );
+  const monthlyStitch = summary?.totals.totalStitch ?? 0;
+  const totalBonus = summary?.totals.totalBonus ?? 0;
+  const topEmployees = useMemo(() => (summary?.employees ?? []).slice(0, 3), [summary]);
+  const dailyData = useMemo(() => summary?.daily ?? [], [summary]);
+  const machineData = useMemo(() => summary?.machines ?? [], [summary]);
+  const dayCount = summary?.totals.dayStitch ?? 0;
+  const nightCount = summary?.totals.nightStitch ?? 0;
+  const recentEntries = useMemo(() => summary?.recentEntries ?? [], [summary]);
+  const shiftTotal = dayCount + nightCount;
+  const dayPct = shiftTotal > 0 ? Math.round((dayCount / shiftTotal) * 100) : 0;
+
+  const now = new Date();
+  const daysElapsed = now.getDate();
+  const todayKey = localDateKey(now);
+  const monthlyTarget = (currentCompany?.machineCount ?? 1) * 10000 * 30;
+  const pct = monthlyStitch > 0 ? Math.min(100, (monthlyStitch / monthlyTarget) * 100) : 0;
+  const animStitch = useCountUp(monthlyStitch, 1100);
+  const dailyAvg = monthlyStitch > 0 && daysElapsed > 0 ? Math.round(monthlyStitch / daysElapsed) : 0;
+  const projected = Math.round((monthlyStitch / (daysElapsed || 1)) * 30);
+  const todayTotal = dailyData.find((d) => d.date === todayKey)?.total ?? 0;
+  const activeDays = dailyData.length;
+  const bestDay = dailyData.reduce((b, d) => (d.total > (b?.total ?? 0) ? d : b), null as { date: string; total: number } | null);
+
+  const barsData = useMemo(() => dailyData.slice(-14).map((d) => {
+    const date = new Date(d.date + "T00:00:00");
+    return { d: date.toLocaleDateString("en-GB", { day: "numeric", month: "short" }), total: d.total };
+  }), [dailyData]);
 
   if (loading || !currentCompany) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <img src="/logo.png" alt="StitchDesk" className="h-14 w-auto object-contain animate-pulse" />
-          <p className="text-gray-400 text-sm">Loading...</p>
-        </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 12 }}>
+        <div className="skel" style={{ width: 56, height: 56, borderRadius: 18 }} />
+        <p className="muted" style={{ fontSize: 13 }}>Loading…</p>
       </div>
     );
   }
 
-  const now = new Date();
-  const monthLabel = now.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-  const daysElapsed = now.getDate();
-  const dailyAvg = monthlyStitch !== null && daysElapsed > 0 ? Math.round(monthlyStitch / daysElapsed) : null;
-  const monthlyTarget = currentCompany.machineCount * 10000 * 30;
-  const progressPct = monthlyStitch !== null ? Math.min(100, Math.round((monthlyStitch / monthlyTarget) * 100)) : 0;
-  const bestDay = dailyData.reduce((b, d) => (d.total > (b?.total ?? 0) ? d : b), null as { date: string; total: number } | null);
-
   return (
     <AppLayout>
-      <div className="space-y-5 pb-2">
-
-        {/* ── Title ─────────────────────────────────────────────────────── */}
-        <div className="pt-1">
-          <h1 className="text-[26px] font-black text-gray-900 leading-tight">Dashboard</h1>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-          </p>
+      <div className="screen">
+        {/* Title */}
+        <div style={{ padding: "6px 2px 16px" }}>
+          <p className="eyebrow" style={{ marginBottom: 6 }}>{greet(lang)}, {currentCompany.name.split(" ")[0]}</p>
+          <h1 className="page-title">{t("dashboard", lang)}</h1>
         </div>
 
-        {/* ── Hero card ──────────────────────────────────────────────────── */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 p-5 text-white shadow-xl shadow-blue-200">
-          <div className="absolute -top-8 -right-8 w-36 h-36 bg-white/10 rounded-full" />
-          <div className="absolute -bottom-10 -left-5 w-28 h-28 bg-white/10 rounded-full" />
-          <div className="relative">
-            <p className="text-xs font-semibold text-blue-100 mb-4">{monthLabel}</p>
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                {statsLoading || monthlyStitch === null ? (
-                  <>
-                    <div className="h-10 w-36 bg-white/20 rounded-xl animate-pulse mb-1" />
-                    <div className="h-3 w-28 bg-white/15 rounded-full animate-pulse" />
-                  </>
-                ) : (
-                  <>
-                    <p className="text-[42px] font-black leading-none tracking-tight">{monthlyStitch.toLocaleString()}</p>
-                    <p className="text-xs text-blue-100 mt-1.5 font-medium">Total stitches this month</p>
-                  </>
-                )}
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center border border-white/25 shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-            </div>
-            <div className="h-1.5 bg-white/25 rounded-full overflow-hidden mb-2">
-              <div className="h-full bg-white rounded-full transition-all duration-700 ease-out" style={{ width: `${progressPct}%` }} />
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-blue-100 font-medium">Daily avg: {dailyAvg !== null ? dailyAvg.toLocaleString() : "—"} stitches</span>
-              <span className="font-bold">{progressPct}%</span>
+        {/* Hero — luxury production stat */}
+        <div className="hero weave" style={{ marginBottom: 13 }}>
+
+          {/* Top row: label + % badge */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <p className="eyebrow">{t("monthStitches", lang)}</p>
+            <div style={{
+              padding: "4px 12px", borderRadius: 999,
+              background: "linear-gradient(135deg, var(--violet-2), var(--teal))",
+              fontSize: 12.5, fontWeight: 800, color: "#fff",
+              fontVariantNumeric: "tabular-nums",
+              boxShadow: "0 2px 12px rgba(109,93,245,.35)",
+            }}>
+              {Math.round(pct)}%
             </div>
           </div>
+
+          {/* Hero number */}
+          <div className="num display" style={{ fontSize: 52, color: "var(--hi)", letterSpacing: "-.03em", lineHeight: .95, marginBottom: 20 }}>
+            {fmt(animStitch, lang)}
+          </div>
+
+          {/* Gradient progress strip with glowing head dot */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ position: "relative", height: 6, borderRadius: 999, background: "var(--s3)" }}>
+              <div style={{
+                position: "absolute", left: 0, top: 0, bottom: 0,
+                width: `${pct > 0 ? Math.max(pct, 1.5) : 0}%`,
+                borderRadius: 999,
+                background: "linear-gradient(90deg, var(--violet-2), var(--violet) 55%, var(--teal))",
+                boxShadow: "0 0 10px rgba(109,93,245,.45)",
+                transition: "width 1.2s cubic-bezier(.16,1,.3,1)",
+              }}>
+                {pct > 0 && (
+                  <div style={{
+                    position: "absolute", right: -5, top: "50%", transform: "translateY(-50%)",
+                    width: 14, height: 14, borderRadius: "50%",
+                    background: "var(--teal)",
+                    boxShadow: "0 0 0 2px var(--s0), 0 0 10px rgba(47,216,182,.7)",
+                  }} />
+                )}
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7 }}>
+              <span className="dim" style={{ fontSize: 10.5 }}>0</span>
+              <span className="dim" style={{ fontSize: 10.5 }}>{fmt(monthlyTarget, lang)} {t("target", lang).toLowerCase()}</span>
+            </div>
+          </div>
+
+          {/* Bottom stats row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span className="tier tier-2" style={{ flexShrink: 0 }}><I.arrowUp w={11} /> {t("onTrack", lang)}</span>
+            <span className="dim" style={{ fontSize: 10 }}>·</span>
+            <span className="dim" style={{ fontSize: 11.5, whiteSpace: "nowrap" }}>{t("dailyAvg", lang)} {fmt(dailyAvg, lang)}</span>
+            <span className="dim" style={{ fontSize: 10 }}>·</span>
+            <span style={{ fontSize: 11.5, color: "var(--teal)", fontWeight: 600, whiteSpace: "nowrap" }}>{fmt(projected, lang)} {t("projected", lang).split(" ").slice(-1)[0]}</span>
+          </div>
+
         </div>
 
-        {/* ── Stat cards ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Stat tiles */}
+        <div className="grid2" style={{ marginBottom: 13 }}>
           {[
-            { label: "Entries", value: statsLoading ? null : monthlyEntries.length, sub: "this month", color: "text-gray-800" },
-            { label: "Employees", value: statsLoading ? null : activeEmployeeCount, sub: "active", color: "text-blue-700" },
-            { label: "Bonus Earned", value: statsLoading ? null : `₹${totalBonus.toFixed(0)}`, sub: "total payout", color: "text-violet-700" },
-            { label: "Avg / Day", value: statsLoading ? null : (dailyAvg !== null ? dailyAvg.toLocaleString() : "0"), sub: "stitches/day", color: "text-emerald-700" },
-          ].map((s) => (
-            <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-1">{s.label}</p>
-              {s.value === null
-                ? <div className="h-7 w-16 bg-gray-100 rounded-lg animate-pulse" />
-                : <>
-                    <p className={`text-2xl font-black leading-none ${s.color}`}>{s.value}</p>
-                    <p className="text-[10px] text-gray-400 mt-1">{s.sub}</p>
-                  </>
-              }
+            { k: t("today", lang), v: fmt(todayTotal, lang), s: t("stitches", lang), c: "c-hi" },
+            { k: t("bonusEarned", lang), v: money(totalBonus, lang), s: t("totalPayout", lang), c: "money" },
+            { k: t("entries", lang), v: fmt(summary?.totals.entries ?? 0, lang), s: t("thisMonth", lang), c: "c-hi" },
+            { k: t("activeDays", lang), v: fmt(activeDays, lang), s: `${fmt(summary?.totals.activeEmployeeCount ?? 0, lang)} ${t("employees", lang).toLowerCase()}`, c: "c-teal" },
+          ].map((s, i) => (
+            <div className="tile" key={i}>
+              <div className="k">{s.k}</div>
+              <div className={"v num " + s.c}>{statsLoading ? <span className="skel" style={{ display: "inline-block", width: 60, height: 22, borderRadius: 6 }} /> : s.v}</div>
+              <div className="s">{s.s}</div>
             </div>
           ))}
         </div>
 
-        {/* ── Daily Production bar chart — full width ────────────────────── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="flex items-start justify-between mb-4">
+        {/* Daily production */}
+        <div className="card weave" style={{ marginBottom: 13 }}>
+          <div className="sec-head" style={{ margin: "0 0 14px" }}>
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Daily Production</p>
-              <p className="text-xs font-semibold text-gray-600 mt-0.5">Last 10 active days</p>
+              <p className="eyebrow">{t("dailyProduction", lang)}</p>
+              <p className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>{t("last14", lang)}</p>
             </div>
-            {bestDay && !statsLoading && (
-              <div className="text-right shrink-0">
-                <p className="text-[9px] text-gray-400 uppercase tracking-wide">Best day</p>
-                <p className="text-xs font-black text-violet-600">{fmtDate(bestDay.date)}</p>
-                <p className="text-[10px] text-gray-500 font-semibold">{bestDay.total.toLocaleString()}</p>
+            {bestDay && (
+              <div style={{ textAlign: "right" }}>
+                <p className="dim" style={{ fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase" }}>{t("bestDay", lang)}</p>
+                <p className="c-gold num" style={{ fontSize: 13, fontWeight: 700 }}>{fmtDate(bestDay.date)}</p>
               </div>
             )}
           </div>
-          {statsLoading ? (
-            <div className="flex items-end gap-2" style={{ height: "148px" }}>
-              {[55, 80, 45, 90, 65, 75, 50, 95, 70, 60].map((h, i) => (
-                <div key={i} className="flex-1 bg-gray-100 rounded-t-lg animate-pulse" style={{ height: `${h}%` }} />
-              ))}
-            </div>
-          ) : (
-            <BarChart data={dailyData} />
+          {barsData.length > 0 ? <Bars data={barsData} lang={lang} /> : (
+            <p className="muted" style={{ textAlign: "center", padding: "20px 0" }}>No data yet this month</p>
           )}
         </div>
 
-        {/* ── Shift Split + Machine Utilization — side by side ──────────── */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Donut */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col items-center gap-2">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest self-start">Shift Split</p>
-            {statsLoading
-              ? <div className="w-24 h-24 rounded-full bg-gray-100 animate-pulse" />
-              : <DonutChart day={dayCount} night={nightCount} />
-            }
-            {!statsLoading && (
-              <div className="w-full space-y-1.5 text-[10px]">
-                <div className="flex justify-between items-center">
-                  <span className="text-amber-600 font-semibold">☀️ Day</span>
-                  <span className="font-black text-gray-700">{dayCount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-indigo-500 font-semibold">🌙 Night</span>
-                  <span className="font-black text-gray-700">{nightCount.toLocaleString()}</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Machine utilization */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Machines</p>
-            {statsLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="h-2.5 w-8 bg-gray-100 rounded animate-pulse shrink-0" />
-                    <div className="flex-1 h-2 bg-gray-100 rounded-full animate-pulse" />
+        {/* Shift split + pace */}
+        <div className="grid2" style={{ marginBottom: 13 }}>
+          <div className="card">
+            <p className="eyebrow" style={{ marginBottom: 12 }}>{t("shiftSplit", lang)}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[
+                { l: t("day", lang), v: dayCount, pct: dayPct, cls: "gold", c: "var(--gold)" },
+                { l: t("night", lang), v: nightCount, pct: 100 - dayPct, cls: "", c: "var(--violet)" },
+              ].map((s, i) => (
+                <div key={i}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: s.c }}>{s.l}</span>
+                    <span className="num dim" style={{ fontSize: 11.5 }}>{s.pct}%</span>
                   </div>
-                ))}
-              </div>
-            ) : machineData.length === 0 ? (
-              <p className="text-xs text-gray-400 mt-6 text-center">No data</p>
+                  <div className="bar-track"><div className={"bar-fill " + s.cls} style={{ width: s.pct + "%" }} /></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="card" style={{ display: "flex", flexDirection: "column" }}>
+            <p className="eyebrow" style={{ marginBottom: 10 }}>{t("pace", lang)}</p>
+            {barsData.length > 0 ? (
+              <Sparkline data={barsData.map((d) => d.total)} height={48} color="var(--teal)" />
             ) : (
-              <div className="space-y-2.5">
-                {machineData.map((m) => {
-                  const pct = Math.round((m.total / (machineData[0]?.total ?? 1)) * 100);
-                  return (
-                    <div key={m.machine}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-[10px] font-bold text-gray-600">M-{m.machine}</span>
-                        <span className="text-[9px] font-semibold text-gray-400">{m.total.toLocaleString()}</span>
-                      </div>
-                      <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%`, background: "linear-gradient(to right, #2563eb, #7c3aed)" }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <div style={{ height: 48, background: "var(--s2)", borderRadius: 8 }} />
             )}
+            <div className="stitch-divider" style={{ margin: "12px 0 11px" }} />
+            <p className="dim" style={{ fontSize: 9.5, letterSpacing: ".1em", textTransform: "uppercase" }}>{t("projected", lang)}</p>
+            <p className="num display c-teal" style={{ fontSize: 24, marginTop: 4 }}>{fmt(projected, lang)}</p>
           </div>
         </div>
 
-        {/* ── Top Performers ────────────────────────────────────────────── */}
-        {(statsLoading || topEmployees.length > 0) && (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Top Performers</p>
-            </div>
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-              {statsLoading ? (
-                <div className="p-4 space-y-4">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-3.5 w-24 bg-gray-100 rounded-full animate-pulse" />
-                        <div className="h-2.5 w-16 bg-gray-100 rounded-full animate-pulse" />
-                      </div>
-                      <div className="h-2.5 w-14 bg-gray-100 rounded-full animate-pulse" />
+        {/* Machine utilisation */}
+        {machineData.length > 0 && (
+          <div className="card" style={{ marginBottom: 13 }}>
+            <p className="eyebrow" style={{ marginBottom: 13 }}>{t("machineUtil", lang)}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+              {machineData.map((m) => {
+                const pctM = Math.round((m.total / (machineData[0]?.total ?? 1)) * 100);
+                return (
+                  <div key={m.machine} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span className="num" style={{ fontSize: 11, fontWeight: 700, color: "var(--mid)", width: 28 }}>M{m.machine}</span>
+                    <div className="bar-track" style={{ flex: 1 }}>
+                      <div className="bar-fill" style={{ width: pctM + "%" }} />
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-50">
-                  {topEmployees.map((emp, i) => (
-                    <div key={emp.name} className="flex items-center gap-3 px-4 py-3.5">
-                      <span className="text-xl w-8 text-center shrink-0">{MEDALS[i]}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-gray-800 truncate">{emp.name}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{emp.stitches.toLocaleString()} stitches</p>
-                      </div>
-                      <p className="text-sm font-bold text-blue-900 shrink-0">₹{emp.bonus.toFixed(0)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    <span className="num dim" style={{ fontSize: 10, width: 48, textAlign: "right" }}>{fmt(m.total, lang)}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* ── Recent Entries ────────────────────────────────────────────── */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Recent Entries</p>
-            <Link href="/stitch-data" className="text-sm font-semibold text-blue-600">See All</Link>
-          </div>
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            {statsLoading ? (
-              <div className="p-4 space-y-4">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-gray-100 animate-pulse shrink-0" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-3.5 w-24 bg-gray-100 rounded-full animate-pulse" />
-                      <div className="h-2.5 w-16 bg-gray-100 rounded-full animate-pulse" />
-                    </div>
-                    <div className="h-2.5 w-14 bg-gray-100 rounded-full animate-pulse" />
+        {/* Top performers */}
+        {topEmployees.length > 0 && (
+          <>
+            <div className="sec-head"><p className="eyebrow">{t("topPerformers", lang)}</p></div>
+            <div className="card flush" style={{ marginBottom: 13 }}>
+              {topEmployees.map((p, i) => (
+                <div className="row" key={p.name} style={{ borderTop: i ? "1px solid var(--line)" : "none" }}>
+                  <div className={"medal medal-" + (i + 1)}>{i + 1}</div>
+                  <Avatar name={p.name} grad={nameToGrad(p.name)} size={38} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--hi)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</p>
+                    <p className="num dim" style={{ fontSize: 11.5, marginTop: 2 }}>{fmt(p.stitches, lang)} {t("stitches", lang)}</p>
                   </div>
-                ))}
-              </div>
-            ) : recentEntries.length === 0 ? (
-              <div className="flex flex-col items-center py-10 gap-2">
-                <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+                  <p className="money num" style={{ fontSize: 15, fontWeight: 700 }}>{money(p.bonus, lang)}</p>
                 </div>
-                <p className="text-sm font-medium text-gray-500">No entries this month yet</p>
-                <button onClick={() => router.push("/stitch-data")}
-                  className="mt-1 text-xs font-semibold text-blue-600 bg-blue-50 px-4 py-1.5 rounded-full">
-                  + Add Stitch Data
-                </button>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {recentEntries.map((entry, idx) => (
-                  <div key={entry.id} className="flex items-center gap-3 px-4 py-3.5">
-                    <div className={`w-11 h-11 rounded-2xl ${ENTRY_COLORS[idx % ENTRY_COLORS.length]} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
-                      {entry.employeeName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-800 truncate">{entry.employeeName}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{entry.stitchCount.toLocaleString()} stitches · Machine {entry.machineNo}</p>
-                    </div>
-                    <p className="text-xs text-gray-400 shrink-0">{entryDateLabel(entry.date)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+              ))}
+            </div>
+          </>
+        )}
 
+        {/* Recent entries */}
+        <div className="sec-head">
+          <p className="eyebrow">{t("recentEntries", lang)}</p>
+          <Link href="/stitch-data" className="link">{t("seeAll", lang)}</Link>
+        </div>
+        <div className="card flush">
+          {statsLoading ? (
+            [0, 1, 2].map((i) => (
+              <div className="row" key={i} style={{ borderTop: i ? "1px solid var(--line)" : "none" }}>
+                <div className="skel" style={{ width: 40, height: 40, borderRadius: 13, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div className="skel" style={{ width: "60%", height: 14, borderRadius: 6, marginBottom: 6 }} />
+                  <div className="skel" style={{ width: "40%", height: 11, borderRadius: 5 }} />
+                </div>
+              </div>
+            ))
+          ) : recentEntries.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "28px 0" }}>
+              <p className="muted" style={{ fontSize: 13 }}>No entries this month yet</p>
+            </div>
+          ) : recentEntries.map((r, i) => (
+            <div className="row" key={r.id} style={{ borderTop: i ? "1px solid var(--line)" : "none" }}>
+              <Avatar name={r.employeeName} grad={nameToGrad(r.employeeName)} size={40} style={{ borderRadius: 13 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--hi)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.employeeName}</p>
+                <p className="num dim" style={{ fontSize: 11, marginTop: 2 }}>{fmt(r.stitchCount, lang)} · M{r.machineNo}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span className={"badge " + (r.shift === "day" ? "badge-day" : "badge-night")}>
+                  {r.shift === "day" ? t("day", lang) : t("night", lang)}
+                </span>
+                <p className="dim" style={{ fontSize: 10.5, marginTop: 4 }}>{entryDateLabel(r.date, lang)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </AppLayout>
   );

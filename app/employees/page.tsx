@@ -1,24 +1,69 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isAuthenticated } from "@/lib/auth";
 import { useCompany } from "@/context/CompanyContext";
+import { useTheme } from "@/context/ThemeContext";
 import { AppLayout } from "@/components/AppLayout";
-import {
-  createEmployee, updateEmployee, deleteEmployee,
-  getEmployees, toBase64, Employee,
-} from "@/lib/employee";
+import { createEmployee, updateEmployee, deleteEmployee, getEmployees, toBase64, Employee } from "@/lib/employee";
+import { t, money, nums } from "@/lib/i18n";
+import Avatar, { nameToGrad } from "@/components/sd/Avatar";
+import Modal from "@/components/sd/Modal";
+import * as I from "@/components/sd/Icons";
 
+// ─── ID Card Modal ────────────────────────────────────────────────────────────
 
-// ─── Drawer (add + edit) ─────────────────────────────────────────────────────
+function IDCardModal({ employee, onClose, onEdit, onDelete }: {
+  employee: Employee;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { lang } = useTheme();
+  const grad = nameToGrad(employee.name);
+  const joined = new Date(employee.createdAt).toLocaleDateString(lang === "gu" ? "en-IN" : "en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  return (
+    <Modal open onClose={onClose} maxW={330}>
+      <div style={{ position: "relative", height: 188, borderRadius: "26px 26px 0 0", overflow: "hidden", background: "var(--s2)" }}>
+        <div className={"av-grad-" + grad} style={{ position: "absolute", inset: 0, opacity: .95 }} />
+        <div className="weave" style={{ position: "absolute", inset: 0 }} />
+        <button className="icon-btn" onClick={onClose} style={{ position: "absolute", top: 12, right: 12, background: "rgba(0,0,0,.3)", color: "#fff", border: "none" }}>
+          <I.close w={16} />
+        </button>
+        {employee.imageData && (
+          <img src={employee.imageData} alt={employee.name} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.85 }} />
+        )}
+        <div style={{ position: "absolute", left: 18, bottom: 16, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.4)" }}>
+          <div style={{ fontSize: 56, fontFamily: "var(--font-display)", lineHeight: 1, opacity: .95 }}>{employee.name.charAt(0)}</div>
+          <h2 className="display" style={{ fontSize: 26, marginTop: 4 }}>{employee.name}</h2>
+        </div>
+      </div>
+      <div style={{ padding: 16 }}>
+        {[
+          { icon: <I.phone w={16} />, v: employee.phone || t("noPhone", lang) },
+          { icon: <I.rupee w={16} />, v: employee.salary !== null ? money(employee.salary, lang) + " · " + t("salary", lang).toLowerCase() : t("salary", lang) },
+          { icon: <I.calendar w={16} />, v: t("joined", lang) + " " + nums(joined, lang) },
+        ].map((r, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", background: "var(--s2)", borderRadius: 13, marginBottom: 8, color: "var(--mid)" }}>
+            <span style={{ color: "var(--violet)" }}>{r.icon}</span>
+            <span className="num" style={{ fontSize: 13.5, color: "var(--hi)" }}>{r.v}</span>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+          <button className="btn btn--ghost" onClick={() => { onClose(); onEdit(); }}><I.edit w={16} /> {t("edit", lang)}</button>
+          <button className="btn btn--danger" onClick={() => { onClose(); onDelete(); }}><I.trash w={16} /> {t("delete", lang)}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Employee Drawer (Add / Edit) ─────────────────────────────────────────────
 
 function EmployeeDrawer({
-  companyId,
-  employee,
-  onClose,
-  onSaved,
-  onUpdated,
+  companyId, employee, onClose, onSaved, onUpdated,
 }: {
   companyId: string;
   employee?: Employee;
@@ -26,18 +71,16 @@ function EmployeeDrawer({
   onSaved?: (emp: Employee) => void;
   onUpdated?: (emp: Employee) => void;
 }) {
+  const { lang } = useTheme();
   const isEdit = !!employee;
   const [name, setName] = useState(employee?.name ?? "");
   const [phone, setPhone] = useState(employee?.phone ?? "");
+  const [salary, setSalary] = useState(employee?.salary !== null && employee?.salary !== undefined ? String(employee.salary) : "");
   const [imagePreview, setImagePreview] = useState<string | null>(employee?.imageData ?? null);
   const [imageData, setImageData] = useState<string | null | undefined>(employee?.imageData ?? undefined);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const joinedDate = isEdit
-    ? new Date(employee.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
-    : new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   const handleImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,110 +96,72 @@ function EmployeeDrawer({
     e.preventDefault();
     setError("");
     if (!name.trim()) { setError("Employee name is required."); return; }
-
+    const salaryValue = salary.trim() === "" ? null : Number(salary);
+    if (salaryValue !== null && (!Number.isFinite(salaryValue) || salaryValue < 0)) {
+      setError("Salary must be a valid non-negative number."); return;
+    }
     setLoading(true);
     try {
       if (isEdit) {
-        const updated = await updateEmployee(employee.id, name, phone, imageData);
+        const updated = await updateEmployee(employee.id, name, phone, salaryValue, imageData);
         onUpdated?.(updated);
       } else {
-        const created = await createEmployee(companyId, name, phone, imageData ?? undefined);
+        const created = await createEmployee(companyId, name, phone, salaryValue, imageData ?? undefined);
         onSaved?.(created);
       }
       onClose();
     } catch (err: any) {
       setError(err.response?.data?.message || `Failed to ${isEdit ? "update" : "add"} employee.`);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">{isEdit ? "Edit Employee" : "Add Employee"}</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+      <div className="sheet-backdrop show" onClick={onClose} />
+      <div style={{ position: "fixed", right: 0, top: 0, height: "100%", width: "100%", maxWidth: 420, background: "var(--s1)", zIndex: 95, display: "flex", flexDirection: "column", boxShadow: "-8px 0 40px rgba(0,0,0,.3)" }}>
+        <div className="sheet__head" style={{ borderBottom: "1px solid var(--line)", padding: "14px 16px" }}>
+          <h3 className="display" style={{ fontSize: 20, color: "var(--hi)" }}>{isEdit ? t("edit", lang) : t("addEmployee", lang)}</h3>
+          <button className="icon-btn" onClick={onClose} style={{ background: "var(--s2)" }}><I.close w={18} /></button>
         </div>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <form onSubmit={handleSubmit} style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Photo */}
-          <div className="flex flex-col items-center gap-3">
-            <div
-              onClick={() => fileRef.current?.click()}
-              className="w-24 h-24 rounded-full border-2 border-dashed border-gray-300 hover:border-blue-400 flex items-center justify-center cursor-pointer overflow-hidden transition group"
-            >
-              {imagePreview ? (
-                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <div className="flex flex-col items-center text-gray-300 group-hover:text-blue-400 transition">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span className="text-xs mt-1">Photo</span>
-                </div>
-              )}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+            <div onClick={() => fileRef.current?.click()}
+              style={{ width: 88, height: 88, borderRadius: "50%", border: "2px dashed var(--line)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden" }}>
+              {imagePreview
+                ? <img src={imagePreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : <Avatar name={name || "?"} grad={nameToGrad(name || "?")} size={88} />
+              }
             </div>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImage} />
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" style={{ display: "none" }} onChange={handleImage} />
             {imagePreview && (
-              <button type="button" onClick={() => { setImagePreview(null); setImageData(null); }}
-                className="text-xs text-gray-400 hover:text-red-500 transition">
+              <button type="button" className="link" style={{ fontSize: 12, color: "var(--danger)" }} onClick={() => { setImagePreview(null); setImageData(null); }}>
                 Remove photo
               </button>
             )}
-            <p className="text-xs text-gray-400">Click to upload · Max 2 MB</p>
           </div>
 
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {error}
-            </div>
-          )}
+          {error && <div style={{ padding: "10px 12px", background: "rgba(239,68,68,.1)", borderRadius: 10, fontSize: 12.5, color: "var(--danger)" }}>{error}</div>}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Employee Name <span className="text-red-500">*</span></label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Priya Sharma"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none transition"
-              disabled={loading} required />
+          <div className="field">
+            <label className="label">{t("name", lang)} <span style={{ color: "var(--danger)" }}>*</span></label>
+            <input className="input" type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={loading} required placeholder="e.g. Priya Sharma" />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-              placeholder="e.g. +91 98765 43210"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent outline-none transition"
-              disabled={loading} />
+          <div className="field">
+            <label className="label">{t("phone", lang)}</label>
+            <input className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={loading} placeholder="+91 98765 43210" />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date Joined</label>
-            <input type="text" value={joinedDate} disabled
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400 outline-none cursor-not-allowed" />
-            {!isEdit && <p className="text-xs text-gray-400 mt-1">Set automatically to today.</p>}
+          <div className="field">
+            <label className="label">{t("salary", lang)}</label>
+            <input className="input" type="number" min={0} step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} disabled={loading} placeholder="e.g. 15000" />
           </div>
         </form>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-          <button type="button" onClick={onClose} disabled={loading}
-            className="flex-1 py-2 border border-gray-300 text-gray-600 rounded-lg hover:border-gray-400 transition text-sm font-medium">
-            Cancel
-          </button>
-          <button onClick={handleSubmit as any} disabled={loading}
-            className="flex-1 py-2 bg-blue-900 hover:bg-blue-800 disabled:bg-gray-300 text-white rounded-lg transition text-sm font-medium">
-            {loading ? (isEdit ? "Saving..." : "Adding...") : (isEdit ? "Save Changes" : "Add Employee")}
+        <div style={{ padding: 16, borderTop: "1px solid var(--line)", display: "flex", gap: 10 }}>
+          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={loading}>{t("cancel", lang)}</button>
+          <button className="btn btn--primary" onClick={handleSubmit as any} disabled={loading}>
+            {loading ? (isEdit ? "Saving…" : "Adding…") : (isEdit ? t("saveChanges", lang) : t("addEmployee", lang))}
           </button>
         </div>
       </div>
@@ -164,64 +169,7 @@ function EmployeeDrawer({
   );
 }
 
-// ─── ID Card Modal ────────────────────────────────────────────────────────────
-
-function IDCardModal({ employee, onClose }: { employee: Employee; onClose: () => void }) {
-  const joined = new Date(employee.createdAt).toLocaleDateString("en-GB", {
-    day: "numeric", month: "long", year: "numeric",
-  });
-
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/60 z-40" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-          {/* Large photo */}
-          <div className="relative">
-            {employee.imageData ? (
-              <img src={employee.imageData} alt={employee.name} className="w-full h-72 object-cover" />
-            ) : (
-              <div className="w-full h-72 bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center text-8xl font-black text-white select-none">
-                {employee.name.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <button
-              onClick={onClose}
-              className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/40 hover:bg-black/60 text-white transition"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            {/* Name overlay at bottom of photo */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-5 pt-8 pb-4">
-              <h2 className="text-xl font-bold text-white">{employee.name}</h2>
-              <p className="text-blue-300 text-sm font-medium">Employee</p>
-            </div>
-          </div>
-
-          {/* Details */}
-          <div className="p-5 space-y-3">
-            <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
-              <span className="text-sm text-gray-700">{employee.phone || "No phone number"}</span>
-            </div>
-            <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span className="text-sm text-gray-700">Joined {joined}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ─── Delete confirmation modal ────────────────────────────────────────────────
+// ─── Delete Modal ─────────────────────────────────────────────────────────────
 
 function DeleteModal({ employee, onCancel, onConfirm, loading }: {
   employee: Employee;
@@ -229,38 +177,23 @@ function DeleteModal({ employee, onCancel, onConfirm, loading }: {
   onConfirm: () => void;
   loading: boolean;
 }) {
+  const { lang } = useTheme();
   return (
-    <>
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={onCancel} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">Delete Employee</h3>
-              <p className="text-sm text-gray-400">This action cannot be undone.</p>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600 mb-6">
-            Are you sure you want to delete <span className="font-semibold text-gray-800">{employee.name}</span>?
-          </p>
-          <div className="flex gap-3">
-            <button onClick={onCancel} disabled={loading}
-              className="flex-1 py-2 border border-gray-300 text-gray-600 rounded-lg hover:border-gray-400 transition text-sm font-medium">
-              Cancel
-            </button>
-            <button onClick={onConfirm} disabled={loading}
-              className="flex-1 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white rounded-lg transition text-sm font-medium">
-              {loading ? "Deleting..." : "Delete"}
-            </button>
-          </div>
+    <Modal open onClose={onCancel} maxW={340}>
+      <div style={{ padding: 20, textAlign: "center" }}>
+        <div style={{ width: 52, height: 52, margin: "0 auto 14px", borderRadius: 16, display: "grid", placeItems: "center", background: "rgba(239,68,68,.12)", color: "var(--danger)" }}>
+          <I.trash w={22} />
+        </div>
+        <h3 className="display" style={{ fontSize: 18, color: "var(--hi)", marginBottom: 8 }}>{t("deleteEmployee", lang)}</h3>
+        <p className="muted" style={{ fontSize: 13 }}>
+          {t("confirmDelete", lang)} <strong style={{ color: "var(--hi)" }}>{employee.name}</strong>?
+        </p>
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <button className="btn btn--ghost" onClick={onCancel} disabled={loading}>{t("cancel", lang)}</button>
+          <button className="btn btn--danger" onClick={onConfirm} disabled={loading}>{loading ? "Deleting…" : t("delete", lang)}</button>
         </div>
       </div>
-    </>
+    </Modal>
   );
 }
 
@@ -273,13 +206,25 @@ function sortByName(list: Employee[]) {
 export default function EmployeesPage() {
   const router = useRouter();
   const { currentCompany } = useCompany();
+  const { lang } = useTheme();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Employee | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [cardEmployee, setCardEmployee] = useState<Employee | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(
+    () => search.trim() === ""
+      ? employees
+      : employees.filter((e) =>
+          e.name.toLowerCase().includes(search.toLowerCase()) ||
+          (e.phone && e.phone.includes(search))
+        ),
+    [employees, search]
+  );
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push("/login"); return; }
@@ -287,18 +232,15 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     if (!currentCompany) return;
-    setLoading(true);
+    setPageLoading(true);
     getEmployees(currentCompany.id)
       .then((data) => setEmployees(sortByName(data)))
       .catch(() => setEmployees([]))
-      .finally(() => setLoading(false));
+      .finally(() => setPageLoading(false));
   }, [currentCompany]);
 
   const handleSaved = (emp: Employee) => setEmployees((prev) => sortByName([...prev, emp]));
-
-  const handleUpdated = (emp: Employee) =>
-    setEmployees((prev) => sortByName(prev.map((e) => (e.id === emp.id ? emp : e))));
-
+  const handleUpdated = (emp: Employee) => setEmployees((prev) => sortByName(prev.map((e) => (e.id === emp.id ? emp : e))));
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
@@ -306,123 +248,82 @@ export default function EmployeesPage() {
       await deleteEmployee(deleteTarget.id);
       setEmployees((prev) => prev.filter((e) => e.id !== deleteTarget.id));
       setDeleteTarget(null);
-    } catch {
-      // keep modal open so user sees it failed
-    } finally {
-      setDeleteLoading(false);
-    }
+    } catch { } finally { setDeleteLoading(false); }
   };
 
   return (
     <AppLayout>
-      <div className="max-w-5xl w-full mx-auto space-y-4">
-        {/* Hero header */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-violet-800 rounded-2xl px-5 py-6 text-white">
-          <div className="absolute -top-6 -right-6 w-32 h-32 bg-white/5 rounded-full" />
-          <div className="absolute -bottom-8 -left-4 w-24 h-24 bg-white/5 rounded-full" />
-          <div className="relative flex items-center justify-between gap-4">
-            <div>
-              <p className="text-blue-200 text-xs font-medium uppercase tracking-widest">Team Members</p>
-              <h1 className="text-xl sm:text-2xl font-black mt-1 uppercase">Employees</h1>
-              <p className="text-blue-200 text-sm mt-0.5 truncate">
-                {currentCompany?.name} · {employees.length} employee{employees.length !== 1 ? "s" : ""}
-              </p>
-            </div>
-            <button
-              onClick={() => { setEditTarget(null); setDrawerOpen(true); }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white text-blue-900 rounded-xl font-semibold text-sm hover:bg-blue-50 transition shrink-0 shadow-sm"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="hidden sm:inline">Add Employee</span>
-            </button>
+      <div className="screen">
+        {/* Header */}
+        <div style={{ padding: "6px 2px 16px", display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+          <div>
+            <p className="eyebrow" style={{ marginBottom: 6 }}>{t("teamMembers", lang)} · {nums(String(employees.length), lang)}</p>
+            <h1 className="page-title">{t("employees", lang)}</h1>
           </div>
+          <button className="btn btn--primary" style={{ width: "auto", padding: "11px 15px", fontSize: 13 }}
+            onClick={() => { setEditTarget(null); setDrawerOpen(true); }}>
+            <I.plus w={16} /> {t("add", lang)}
+          </button>
+        </div>
+
+        {/* Search */}
+        <div style={{ position: "relative", marginBottom: 14 }}>
+          <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--low)" }}><I.search w={18} /></span>
+          <input className="input" style={{ paddingLeft: 42 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("search", lang)} />
         </div>
 
         {/* Grid */}
-        {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-pulse">
-                <div className="w-full aspect-square bg-gray-100" />
-                <div className="p-3 space-y-2">
-                  <div className="h-3.5 bg-gray-100 rounded w-3/4" />
-                  <div className="h-2.5 bg-gray-100 rounded w-1/2" />
+        {pageLoading ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="card" style={{ padding: 0 }}>
+                <div className="skel" style={{ aspectRatio: "1.15", width: "100%", borderRadius: "var(--r) var(--r) 0 0" }} />
+                <div style={{ padding: "11px 13px 13px" }}>
+                  <div className="skel" style={{ height: 14, width: "70%", borderRadius: 5, marginBottom: 6 }} />
+                  <div className="skel" style={{ height: 11, width: "50%", borderRadius: 4 }} />
                 </div>
               </div>
             ))}
           </div>
         ) : employees.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 flex flex-col items-center text-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-gray-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <p className="text-gray-500 font-medium">No employees yet</p>
-            <p className="text-gray-400 text-sm mt-1 mb-5">Add your first team member to get started.</p>
-            <button onClick={() => setDrawerOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl transition text-sm font-semibold">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Employee
+          <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
+            <p className="muted" style={{ marginBottom: 14 }}>{t("noEmployees", lang)}</p>
+            <button className="btn btn--primary" style={{ width: "auto", margin: "0 auto" }} onClick={() => setDrawerOpen(true)}>
+              <I.plus w={16} /> {t("addEmployee", lang)}
             </button>
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="card" style={{ textAlign: "center", padding: "30px 20px" }}>
+            <p className="muted">No results for "{search}"</p>
+            <button className="link" style={{ marginTop: 10 }} onClick={() => setSearch("")}>Clear search</button>
+          </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {employees.map((emp) => (
-              <div
-                key={emp.id}
-                onClick={() => setCardEmployee(emp)}
-                className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer overflow-hidden"
-              >
-                {/* Photo */}
-                <div className="relative w-full aspect-square">
-                  {emp.imageData ? (
-                    <img src={emp.imageData} alt={emp.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center text-4xl font-black text-white select-none">
-                      {emp.name.charAt(0).toUpperCase()}
-                    </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {filtered.map((emp) => (
+              <button key={emp.id} className="card" style={{ padding: 0, textAlign: "left" }} onClick={() => setCardEmployee(emp)}>
+                <div style={{ position: "relative", aspectRatio: "1.15", overflow: "hidden" }}>
+                  {emp.imageData
+                    ? <img src={emp.imageData} alt={emp.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <>
+                        <div className={"av-grad-" + nameToGrad(emp.name)} style={{ position: "absolute", inset: 0 }} />
+                        <div className="weave" style={{ position: "absolute", inset: 0 }} />
+                        <span style={{ position: "absolute", left: 14, top: 10, fontSize: 44, fontFamily: "var(--font-display)", color: "rgba(255,255,255,.92)", lineHeight: 1 }}>{emp.name.charAt(0)}</span>
+                      </>
+                  }
+                </div>
+                <div style={{ padding: "11px 13px 13px" }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--hi)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emp.name}</p>
+                  <p className="num dim" style={{ fontSize: 11, marginTop: 3 }}>{emp.phone || t("noPhone", lang)}</p>
+                  {emp.salary !== null && (
+                    <p className="money num" style={{ fontSize: 13, fontWeight: 700, marginTop: 6 }}>{money(emp.salary, lang)}</p>
                   )}
-                  {/* Hover overlay with action buttons */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setEditTarget(emp); setDrawerOpen(true); }}
-                      className="p-2 bg-white rounded-xl text-blue-900 hover:bg-blue-50 transition shadow"
-                      title="Edit"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(emp); }}
-                      className="p-2 bg-white rounded-xl text-red-600 hover:bg-red-50 transition shadow"
-                      title="Delete"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
                 </div>
-
-                {/* Info */}
-                <div className="p-3">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{emp.name}</p>
-                  <p className="text-xs text-gray-400 truncate mt-0.5">{emp.phone || "No phone"}</p>
-                  <p className="text-xs text-gray-300 mt-1">
-                    {new Date(emp.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                  </p>
-                </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Add / Edit drawer */}
       {drawerOpen && currentCompany && (
         <EmployeeDrawer
           companyId={currentCompany.id}
@@ -433,19 +334,17 @@ export default function EmployeesPage() {
         />
       )}
 
-      {/* Delete confirmation */}
       {deleteTarget && (
-        <DeleteModal
-          employee={deleteTarget}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={handleDelete}
-          loading={deleteLoading}
-        />
+        <DeleteModal employee={deleteTarget} onCancel={() => setDeleteTarget(null)} onConfirm={handleDelete} loading={deleteLoading} />
       )}
 
-      {/* ID Card popup */}
       {cardEmployee && (
-        <IDCardModal employee={cardEmployee} onClose={() => setCardEmployee(null)} />
+        <IDCardModal
+          employee={cardEmployee}
+          onClose={() => setCardEmployee(null)}
+          onEdit={() => { setEditTarget(cardEmployee); setDrawerOpen(true); }}
+          onDelete={() => setDeleteTarget(cardEmployee)}
+        />
       )}
     </AppLayout>
   );
