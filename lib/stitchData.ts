@@ -32,6 +32,12 @@ export interface MonthlyStitchSummary {
     employeeId: string;
     name: string;
     salary: number | null;
+    workingDays: number;
+    leaveDays: number;
+    daysInMonth: number;
+    dailyRate: number;
+    deduction: number;
+    finalSalary: number;
     stitches: number;
     bonus: number;
     entries: number;
@@ -87,13 +93,15 @@ export async function getMonthlyStitchSummary(companyId: string, year: number, m
     }
 
     const entries = await getMonthlyStitchData(companyId, year, month);
-    return buildMonthlySummary(entries);
+    return buildMonthlySummary(entries, year, month);
   }
 }
 
-function buildMonthlySummary(entries: StitchEntry[]): MonthlyStitchSummary {
+function buildMonthlySummary(entries: StitchEntry[], year: number, month: number): MonthlyStitchSummary {
+  const daysInMonth = new Date(year, month, 0).getDate();
   const dailyMap = new Map<string, number>();
   const employeeMap = new Map<string, { employeeId: string; name: string; salary: number | null; stitches: number; bonus: number; entries: number }>();
+  const employeeDatesMap = new Map<string, Set<string>>();
   const machineMap = new Map<number, number>();
   let totalStitch = 0;
   let totalBonus = 0;
@@ -108,6 +116,10 @@ function buildMonthlySummary(entries: StitchEntry[]): MonthlyStitchSummary {
 
     dailyMap.set(entry.date, (dailyMap.get(entry.date) ?? 0) + entry.stitchCount);
     machineMap.set(entry.machineNo, (machineMap.get(entry.machineNo) ?? 0) + entry.stitchCount);
+
+    const dates = employeeDatesMap.get(entry.employeeId) ?? new Set<string>();
+    dates.add(entry.date);
+    employeeDatesMap.set(entry.employeeId, dates);
 
     const employee = employeeMap.get(entry.employeeId) ?? {
       employeeId: entry.employeeId,
@@ -135,7 +147,14 @@ function buildMonthlySummary(entries: StitchEntry[]): MonthlyStitchSummary {
     daily: [...dailyMap.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, total]) => ({ date, total })),
-    employees: [...employeeMap.values()].sort((a, b) => b.stitches - a.stitches),
+    employees: [...employeeMap.values()].map((emp) => {
+      const workingDays = employeeDatesMap.get(emp.employeeId)?.size ?? 0;
+      const leaveDays = Math.max(0, daysInMonth - workingDays);
+      const dailyRate = emp.salary ? Math.round((emp.salary / daysInMonth) * 100) / 100 : 0;
+      const deduction = Math.round(dailyRate * leaveDays * 100) / 100;
+      const finalSalary = Math.max(0, Math.round(((emp.salary ?? 0) - deduction) * 100) / 100);
+      return { ...emp, workingDays, leaveDays, daysInMonth, dailyRate, deduction, finalSalary };
+    }).sort((a, b) => b.stitches - a.stitches),
     machines: [...machineMap.entries()]
       .sort(([, a], [, b]) => b - a)
       .map(([machine, total]) => ({ machine, total })),

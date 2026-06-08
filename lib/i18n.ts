@@ -115,6 +115,14 @@ export const STR: Record<string, [string, string]> = {
   noEntries: ["No entries for this date", "આ તારીખ માટે કોઈ એન્ટ્રી નહીં"],
   selectMonth: ["Select month", "મહિનો પસંદ કરો"],
   selectYear: ["Select year", "વર્ષ પસંદ કરો"],
+  salaryMgmt: ["Monthly Salary", "માસિક પગાર"],
+  leaveDays: ["Leave days", "રજા દિવસ"],
+  dailyRate: ["Daily rate", "દૈનિક દર"],
+  deduction: ["Deduction", "કપાત"],
+  finalSalary: ["Final salary", "અંતિમ પગાર"],
+  noSalarySet: ["No salary set", "પગાર સેટ નથી"],
+  absent: ["Absent", "ગેરહાજર"],
+  fullPay: ["Full pay", "સંપૂર્ણ પગાર"],
 };
 
 export function t(key: string, lang: Lang): string {

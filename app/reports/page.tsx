@@ -7,7 +7,7 @@ import { useCompany } from "@/context/CompanyContext";
 import { useUser } from "@/context/UserContext";
 import { useTheme } from "@/context/ThemeContext";
 import { AppLayout } from "@/components/AppLayout";
-import { getMonthlyStitchSummary, MonthlyStitchSummary } from "@/lib/stitchData";
+import { getMonthlyStitchSummary, getMonthlyStitchData, MonthlyStitchSummary, StitchEntry } from "@/lib/stitchData";
 import { t, fmt, money } from "@/lib/i18n";
 import * as I from "@/components/sd/Icons";
 
@@ -18,7 +18,7 @@ async function generatePayoutPDF(opts: {
   userName: string;
   monthLabel: string;
   generatedDate: string;
-  rows: Array<{ name: string; stitches: number; salary: number; bonus: number; totalPay: number; entries: number }>;
+  rows: Array<{ name: string; stitches: number; salary: number; daysInMonth: number; workingDays: number; leaveDays: number; dailyRate: number; deduction: number; finalSalary: number; bonus: number; totalPay: number; entries: number }>;
   totalSalary: number;
   totalBonus: number;
   totalPay: number;
@@ -105,33 +105,6 @@ async function generatePayoutPDF(opts: {
     doc.line(ML, 11, PW - MR, 11);
   }
 
-  // ── FOOTER ────────────────────────────────────────────────────────────────
-  function drawFooter(pg: number, total: number) {
-    const fy = PH - 9;
-    doc.setDrawColor(...G200);
-    doc.setLineWidth(0.3);
-    doc.line(ML, fy, PW - MR, fy);
-
-    // Orange dot accent
-    doc.setFillColor(...ORANGE);
-    doc.circle(ML + 1.5, fy + 3.5, 1.2, "F");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...G600);
-    doc.text("StitchDesk", ML + 5, fy + 4);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...G400);
-    doc.text("Embroidery Production & Payout Management", ML + 30, fy + 4);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...G600);
-    doc.text(`Page ${pg} / ${total}`, PW - MR, fy + 4, { align: "right" });
-  }
-
   // ── Draw page 1 header ────────────────────────────────────────────────────
   drawHeader();
 
@@ -141,7 +114,7 @@ async function generatePayoutPDF(opts: {
   const tileW = (CW - 8) / 3;
   const tileAccent: RGB[] = [ORANGE, BLUE, GREEN];
   const tileFill: RGB[]   = [OR_SOFT, BL_SOFT, GR_SOFT];
-  const tileLabels = ["BASE SALARY", "PRODUCTION BONUS", "NET PAYABLE"];
+  const tileLabels = ["FINAL SALARY", "PRODUCTION BONUS", "NET PAYABLE"];
   const tileValues = [rs(opts.totalSalary), rs(opts.totalBonus), rs(opts.totalPay)];
 
   tileLabels.forEach((label, i) => {
@@ -179,30 +152,31 @@ async function generatePayoutPDF(opts: {
   doc.rect(ML + 40, secY + 1.5, CW - 40, 0.8, "F");
 
   // ── TABLE ─────────────────────────────────────────────────────────────────
+  // Column widths: 8+44+30+30+26+22+22 = 182 (= CW) — mirrors on-screen view
   const tableRows = opts.rows.map((emp, i) => [
     String(i + 1),
     emp.name,
-    emp.stitches.toLocaleString("en-IN"),
     rs(emp.salary),
+    `${emp.workingDays} / ${emp.daysInMonth} days`,
+    rs(emp.finalSalary),
     rs(emp.bonus),
     rs(emp.totalPay),
-    String(emp.entries),
   ]);
 
   // totalRow is drawn manually below so we control page-break behaviour
   autoTable(doc, {
     startY: secY + 5,
     margin: { left: ML, right: MR },
-    head: [["#", "Employee", "Stitches", "Salary", "Bonus", "Total Pay", "Entries"]],
+    head: [["#", "Employee", "Monthly Sal.", "Worked / Month", "Earned Sal.", "Bonus", "Total Pay"]],
     body: tableRows,
     columnStyles: {
-      0: { cellWidth: 9,  halign: "center",  textColor: G400 },
-      1: { cellWidth: 58, halign: "left" },
-      2: { cellWidth: 22, halign: "right" },
-      3: { cellWidth: 26, halign: "right" },
-      4: { cellWidth: 26, halign: "right",  textColor: BLUE },
-      5: { cellWidth: 28, halign: "right",  fontStyle: "bold", textColor: G900 },
-      6: { cellWidth: 13, halign: "center", textColor: G400 },
+      0: { cellWidth: 8,  halign: "center", textColor: G400 },
+      1: { cellWidth: 44, halign: "left" },
+      2: { cellWidth: 30, halign: "right" },
+      3: { cellWidth: 30, halign: "center" },
+      4: { cellWidth: 26, halign: "right", fontStyle: "bold" },
+      5: { cellWidth: 22, halign: "right", textColor: BLUE },
+      6: { cellWidth: 22, halign: "right", fontStyle: "bold", textColor: G900 },
     },
     headStyles: {
       fillColor: NAVY,
@@ -225,7 +199,6 @@ async function generatePayoutPDF(opts: {
     tableLineWidth: 0.2,
     didDrawPage({ pageNumber }: { pageNumber: number }) {
       if (pageNumber > 1) drawMiniHeader();
-      drawFooter(pageNumber, 999);
     },
   });
 
@@ -252,11 +225,12 @@ async function generatePayoutPDF(opts: {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
 
-    // column x-positions mirror the autoTable layout
+    // 7 cols: 8+44+30+30+26+22+22 = 182 = CW
+    // Earned Sal. right = 138, Bonus right = 160, Total Pay right = 182
     const cols = [
-      { x: ML + 9 + 58 + 22 + 26,      text: rs(opts.totalSalary), align: "right" as const, color: G900 },
-      { x: ML + 9 + 58 + 22 + 26 + 26, text: rs(opts.totalBonus),  align: "right" as const, color: BLUE },
-      { x: ML + CW - 13,                text: rs(opts.totalPay),    align: "right" as const, color: NAVY },
+      { x: ML + 138 - 3, text: rs(opts.totalSalary), align: "right" as const, color: G900 },
+      { x: ML + 160 - 3, text: rs(opts.totalBonus),  align: "right" as const, color: BLUE },
+      { x: ML + CW  - 3, text: rs(opts.totalPay),    align: "right" as const, color: NAVY },
     ];
     doc.setTextColor(...NAVY);
     doc.text("TOTAL", ML + 11, y + 6);
@@ -353,12 +327,211 @@ async function generatePayoutPDF(opts: {
     drawSignatures(afterY + TOTALS_H + 6 + CARDS_H + 6);
   }
 
-  // ── Fix footer page totals on every page ─────────────────────────────────
-  const totalPg = (doc as any).internal.getNumberOfPages();
-  for (let p = 1; p <= totalPg; p++) {
-    doc.setPage(p);
-    drawFooter(p, totalPg);
-  }
+  doc.save(opts.filename);
+}
+
+// ─── Employee History PDF ─────────────────────────────────────────────────────
+
+async function generateEmployeeHistoryPDF(opts: {
+  employeeName: string;
+  businessName: string;
+  userName: string;
+  monthLabel: string;
+  generatedDate: string;
+  salary: number;
+  daysInMonth: number;
+  workingDays: number;
+  leaveDays: number;
+  dailyRate: number;
+  finalSalary: number;
+  bonus: number;
+  totalPay: number;
+  entries: Array<{ date: string; shift: string; machineNo: number; stitchCount: number; bonusEarned: number }>;
+  filename: string;
+}) {
+  const { jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  type RGB = [number, number, number];
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  const PW = 210, PH = 297;
+  const ML = 14, MR = 14, CW = PW - ML - MR;
+
+  const NAVY:    RGB = [13,  27,  75 ];
+  const ORANGE:  RGB = [234, 88,  12 ];
+  const OR_SOFT: RGB = [255, 237, 213];
+  const BLUE:    RGB = [30,  58,  138];
+  const BL_SOFT: RGB = [239, 246, 255];
+  const GREEN:   RGB = [5,   150, 105];
+  const GR_SOFT: RGB = [240, 253, 244];
+  const WHITE:   RGB = [255, 255, 255];
+  const G50:     RGB = [249, 250, 251];
+  const G200:    RGB = [229, 231, 235];
+  const G400:    RGB = [156, 163, 175];
+  const G600:    RGB = [75,  85,  99 ];
+  const G900:    RGB = [17,  24,  39 ];
+
+  const rs = (n: number) => `Rs ${Math.round(n).toLocaleString("en-IN")}`;
+
+  // ── Header ──────────────────────────────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, PW, 1.2, "F");
+
+  doc.setFontSize(6.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...G400);
+  doc.text("EMPLOYEE SALARY STATEMENT", ML, 10);
+
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...NAVY);
+  doc.text(opts.employeeName, ML, 20);
+
+  doc.setFontSize(7.5);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...G400);
+  doc.text(`${opts.businessName}  ·  Prepared by ${opts.userName}  ·  Generated ${opts.generatedDate}`, ML, 27);
+
+  doc.setFontSize(6.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...G400);
+  doc.text("PERIOD", PW - MR, 10, { align: "right" });
+
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...NAVY);
+  doc.text(opts.monthLabel, PW - MR, 20, { align: "right" });
+
+  doc.setDrawColor(...G200);
+  doc.setLineWidth(0.4);
+  doc.line(ML, 31, PW - MR, 31);
+
+  // ── Salary stat tiles ───────────────────────────────────────────────────────
+  const tileY = 37;
+  const tileH = 20;
+  const tileW = (CW - 8) / 3;
+  const tileAccent: RGB[] = [ORANGE, BLUE, GREEN];
+  const tileFill:   RGB[] = [OR_SOFT, BL_SOFT, GR_SOFT];
+  [["MONTHLY SALARY", rs(opts.salary)], ["EARNED SALARY", rs(opts.finalSalary)], ["TOTAL PAY", rs(opts.totalPay)]].forEach(([label, value], i) => {
+    const x = ML + i * (tileW + 4);
+    doc.setFillColor(...tileFill[i]);
+    doc.setDrawColor(...G200);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(x, tileY, tileW, tileH, 3, 3, "FD");
+    doc.setFillColor(...tileAccent[i]);
+    doc.roundedRect(x, tileY, 3.5, tileH, 2, 2, "F");
+    doc.rect(x + 1.5, tileY, 2, tileH, "F");
+    doc.setFontSize(6);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...G600);
+    doc.text(label, x + 7, tileY + 7);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...G900);
+    doc.text(value, x + 7, tileY + 16);
+  });
+
+  // ── Info chips: attendance + per-day rate ───────────────────────────────────
+  const chipY = tileY + tileH + 5;
+  const chipH = 13;
+  const chipW = (CW - 9) / 4;
+  [
+    { label: "DAYS IN MONTH", value: String(opts.daysInMonth) },
+    { label: "DAYS WORKED",   value: String(opts.workingDays) },
+    { label: "DAYS OFF",      value: String(opts.leaveDays) },
+    { label: "PER DAY RATE",  value: rs(opts.dailyRate) },
+  ].forEach((chip, i) => {
+    const x = ML + i * (chipW + 3);
+    doc.setFillColor(...G50);
+    doc.setDrawColor(...G200);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(x, chipY, chipW, chipH, 2, 2, "FD");
+    doc.setFontSize(6);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...G400);
+    doc.text(chip.label, x + 4, chipY + 5);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...G900);
+    doc.text(chip.value, x + 4, chipY + 11);
+  });
+
+  // ── Section label ───────────────────────────────────────────────────────────
+  const secY = chipY + chipH + 6;
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...G400);
+  doc.text("ENTRY HISTORY", ML, secY);
+  doc.setFillColor(...ORANGE);
+  doc.rect(ML, secY + 1.5, 28, 0.8, "F");
+  doc.setFillColor(...G200);
+  doc.rect(ML + 28, secY + 1.5, CW - 28, 0.8, "F");
+
+  // ── Entries table  8+38+22+18+50+46 = 182 ──────────────────────────────────
+  const tableRows = opts.entries.map((e, i) => [
+    String(i + 1),
+    new Date(e.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+    e.shift.charAt(0).toUpperCase() + e.shift.slice(1),
+    `M-${e.machineNo}`,
+    e.stitchCount.toLocaleString("en-IN"),
+    rs(Number(e.bonusEarned)),
+  ]);
+
+  autoTable(doc, {
+    startY: secY + 5,
+    margin: { left: ML, right: MR },
+    head: [["#", "Date", "Shift", "Machine", "Stitches", "Bonus Earned"]],
+    body: tableRows,
+    columnStyles: {
+      0: { cellWidth: 8,  halign: "center", textColor: G400 },
+      1: { cellWidth: 38, halign: "left" },
+      2: { cellWidth: 22, halign: "center" },
+      3: { cellWidth: 18, halign: "center", textColor: G600 },
+      4: { cellWidth: 50, halign: "right" },
+      5: { cellWidth: 46, halign: "right", textColor: BLUE },
+    },
+    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold", fontSize: 8, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, lineColor: NAVY, lineWidth: 0 },
+    bodyStyles: { fontSize: 8.5, cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, textColor: G900, lineColor: G200, lineWidth: 0.2 },
+    alternateRowStyles: { fillColor: G50 },
+    tableLineColor: G200,
+    tableLineWidth: 0.2,
+    didDrawPage({ pageNumber }: { pageNumber: number }) {
+      if (pageNumber > 1) {
+        doc.setFontSize(7.5);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...NAVY);
+        doc.text(`${opts.employeeName}  ·  Employee Statement`, ML, 8);
+        doc.setTextColor(...G400);
+        doc.text(opts.monthLabel, PW - MR, 8, { align: "right" });
+        doc.setDrawColor(...G200);
+        doc.setLineWidth(0.4);
+        doc.line(ML, 11, PW - MR, 11);
+      }
+    },
+  });
+
+  // ── Totals bar ──────────────────────────────────────────────────────────────
+  // Stitches right = 8+38+22+18+50 = 136 → text at 133; Bonus right = 182 → text at 179
+  const afterY = (doc as any).lastAutoTable.finalY;
+  const TOT_H = 9;
+  doc.setFillColor(...G50);
+  doc.setDrawColor(...NAVY);
+  doc.setLineWidth(0.8);
+  doc.line(ML, afterY + 4, ML + CW, afterY + 4);
+  doc.setLineWidth(0.2);
+  doc.rect(ML, afterY + 4, CW, TOT_H, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...NAVY);
+  doc.text("TOTAL", ML + 11, afterY + 4 + 6);
+  doc.setTextColor(...G900);
+  doc.text(opts.entries.reduce((s, e) => s + e.stitchCount, 0).toLocaleString("en-IN"), ML + 133, afterY + 4 + 6, { align: "right" });
+  doc.setTextColor(...BLUE);
+  doc.text(rs(opts.bonus), ML + CW - 3, afterY + 4 + 6, { align: "right" });
+  doc.setDrawColor(...G200);
+  doc.setLineWidth(0.2);
+  doc.rect(ML, afterY + 4, CW, TOT_H, "S");
 
   doc.save(opts.filename);
 }
@@ -425,6 +598,7 @@ export default function ReportsPage() {
   const [view, setView] = useState<ReportView>("payout");
   const [summary, setSummary] = useState<MonthlyStitchSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pdfEmpId, setPdfEmpId] = useState<string | null>(null);
 
   useEffect(() => { if (!isAuthenticated()) router.push("/login"); }, [router]);
 
@@ -450,11 +624,17 @@ export default function ReportsPage() {
     () => employeeRows.map((emp) => ({
       ...emp,
       salary: emp.salary ?? 0,
-      totalPay: (emp.salary ?? 0) + emp.bonus,
+      workingDays: emp.workingDays ?? 0,
+      leaveDays: emp.leaveDays ?? 0,
+      daysInMonth: emp.daysInMonth ?? 30,
+      dailyRate: emp.dailyRate ?? 0,
+      deduction: emp.deduction ?? 0,
+      finalSalary: emp.finalSalary ?? (emp.salary ?? 0),
+      totalPay: (emp.finalSalary ?? emp.salary ?? 0) + emp.bonus,
     })),
     [employeeRows]
   );
-  const totalSalary = payoutRows.reduce((sum, emp) => sum + emp.salary, 0);
+  const totalSalary = payoutRows.reduce((sum, emp) => sum + emp.finalSalary, 0);
   const totalPay = payoutRows.reduce((sum, emp) => sum + emp.totalPay, 0);
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
 
@@ -468,23 +648,60 @@ export default function ReportsPage() {
     else setMonth((m) => m + 1);
   };
 
+  const handleEmployeePdf = async (emp: typeof payoutRows[0]) => {
+    if (!currentCompany) return;
+    setPdfEmpId(emp.employeeId);
+    try {
+      const allEntries = await getMonthlyStitchData(currentCompany.id, year, month);
+      const empEntries = allEntries
+        .filter((e: StitchEntry) => e.employeeId === emp.employeeId)
+        .sort((a: StitchEntry, b: StitchEntry) => a.date.localeCompare(b.date) || a.shift.localeCompare(b.shift));
+      const prefix = `${emp.name.replace(/\s+/g, "-").toLowerCase()}-${reportLabel.toLowerCase()}`;
+      await generateEmployeeHistoryPDF({
+        employeeName: emp.name,
+        businessName: currentCompany.name,
+        userName: user?.name ?? "User",
+        monthLabel,
+        generatedDate,
+        salary: emp.salary,
+        daysInMonth: emp.daysInMonth,
+        workingDays: emp.workingDays,
+        leaveDays: emp.leaveDays,
+        dailyRate: emp.dailyRate,
+        finalSalary: emp.finalSalary,
+        bonus: emp.bonus,
+        totalPay: emp.totalPay,
+        entries: empEntries.map((e: StitchEntry) => ({
+          date: e.date,
+          shift: e.shift,
+          machineNo: e.machineNo,
+          stitchCount: e.stitchCount,
+          bonusEarned: Number(e.bonusEarned),
+        })),
+        filename: `${prefix}-statement.pdf`,
+      });
+    } finally {
+      setPdfEmpId(null);
+    }
+  };
+
   const downloadCurrentReport = () => {
     if (!summary || !currentCompany) return;
     const prefix = `${currentCompany.name.replace(/\s+/g, "-").toLowerCase()}-${reportLabel.toLowerCase()}`;
 
     if (view === "payout") {
       downloadCsv(`${prefix}-salary-bonus-report.csv`, [
-        ["Employee", "Salary", "Bonus", "Total Pay", "Entries", "Stitches"],
-        ...payoutRows.map((emp) => [emp.name, emp.salary, emp.bonus, emp.totalPay, emp.entries, emp.stitches]),
-        ["Total", totalSalary, totals?.totalBonus ?? 0, totalPay, totals?.entries ?? 0, totals?.totalStitch ?? 0],
+        ["Employee", "Monthly Salary", "Month Days", "Worked Days", "Leave Days", "Per Day Rate", "Earned Salary", "Bonus", "Total Pay", "Entries", "Stitches"],
+        ...payoutRows.map((emp) => [emp.name, emp.salary, emp.daysInMonth, emp.workingDays, emp.leaveDays, emp.dailyRate, emp.finalSalary, emp.bonus, emp.totalPay, emp.entries, emp.stitches]),
+        ["Total", "", "", "", "", "", totalSalary, totals?.totalBonus ?? 0, totalPay, totals?.entries ?? 0, totals?.totalStitch ?? 0],
       ]);
       return;
     }
 
     if (view === "employee") {
       downloadCsv(`${prefix}-employee-payout.csv`, [
-        ["Employee", "Entries", "Stitches", "Salary", "Bonus", "Total Pay"],
-        ...payoutRows.map((emp) => [emp.name, emp.entries, emp.stitches, emp.salary, emp.bonus, emp.totalPay]),
+        ["Employee", "Entries", "Stitches", "Monthly Salary", "Month Days", "Worked Days", "Leave Days", "Per Day Rate", "Earned Salary", "Bonus", "Total Pay"],
+        ...payoutRows.map((emp) => [emp.name, emp.entries, emp.stitches, emp.salary, emp.daysInMonth, emp.workingDays, emp.leaveDays, emp.dailyRate, emp.finalSalary, emp.bonus, emp.totalPay]),
       ]);
       return;
     }
@@ -592,7 +809,20 @@ export default function ReportsPage() {
                   userName: user?.name ?? "User",
                   monthLabel,
                   generatedDate,
-                  rows: payoutRows,
+                  rows: payoutRows.map((emp) => ({
+                    name: emp.name,
+                    stitches: emp.stitches,
+                    salary: emp.salary,
+                    daysInMonth: emp.daysInMonth,
+                    workingDays: emp.workingDays,
+                    leaveDays: emp.leaveDays,
+                    dailyRate: emp.dailyRate,
+                    deduction: emp.deduction,
+                    finalSalary: emp.finalSalary,
+                    bonus: emp.bonus,
+                    totalPay: emp.totalPay,
+                    entries: emp.entries,
+                  })),
                   totalSalary,
                   totalBonus: totals?.totalBonus ?? 0,
                   totalPay,
@@ -661,18 +891,39 @@ export default function ReportsPage() {
                   <div style={{ minWidth: 520 }}>
                     <div className="row" style={{ background: "var(--s2)", borderBottom: "1px solid var(--line)" }}>
                       <span style={{ flex: 1, fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("name", lang)}</span>
-                      <span style={{ width: 52, textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("entries", lang)}</span>
-                      <span style={{ width: 76, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("salary", lang)}</span>
-                      <span style={{ width: 76, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("bonus", lang)}</span>
-                      <span style={{ width: 80, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("total", lang)}</span>
+                      <span style={{ width: 64, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>Worked</span>
+                      <span style={{ width: 52, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>Per Day</span>
+                      <span style={{ width: 68, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("finalSalary", lang)}</span>
+                      <span style={{ width: 60, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("bonus", lang)}</span>
+                      <span style={{ width: 72, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("total", lang)}</span>
+                      <span style={{ width: 36 }} />
                     </div>
                     {payoutRows.map((emp, i) => (
                       <div className="row" key={emp.employeeId} style={{ borderTop: i ? "1px solid var(--line)" : "none" }}>
-                        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "var(--hi)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{emp.name}</span>
-                        <span style={{ width: 52, textAlign: "center", fontSize: 12, color: "var(--mid)" }}>{emp.entries}</span>
-                        <span style={{ width: 76, textAlign: "right", fontSize: 12, fontWeight: 600, color: "var(--mid)" }}>{currency(emp.salary)}</span>
-                        <span style={{ width: 76, textAlign: "right", fontSize: 12, fontWeight: 700, color: "var(--violet)" }}>{currency(emp.bonus)}</span>
-                        <span style={{ width: 80, textAlign: "right", fontSize: 13, fontWeight: 800, color: "var(--hi)" }}>{currency(emp.totalPay)}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--hi)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{emp.name}</p>
+                          {emp.leaveDays > 0 && (
+                            <p style={{ fontSize: 10.5, color: "var(--danger)", marginTop: 1 }}>{emp.leaveDays} day{emp.leaveDays > 1 ? "s" : ""} off</p>
+                          )}
+                        </div>
+                        <span style={{ width: 64, textAlign: "right", fontSize: 12, fontWeight: 600, color: "var(--mid)" }}>{emp.workingDays} / {emp.daysInMonth}</span>
+                        <span style={{ width: 52, textAlign: "right", fontSize: 11.5, color: "var(--low)" }}>{currency(emp.dailyRate)}</span>
+                        <span style={{ width: 68, textAlign: "right", fontSize: 12, fontWeight: 600, color: "var(--mid)" }}>{currency(emp.finalSalary)}</span>
+                        <span style={{ width: 60, textAlign: "right", fontSize: 12, fontWeight: 700, color: "var(--violet)" }}>{currency(emp.bonus)}</span>
+                        <span style={{ width: 72, textAlign: "right", fontSize: 13, fontWeight: 800, color: "var(--hi)" }}>{currency(emp.totalPay)}</span>
+                        <div style={{ width: 36, display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
+                          <button
+                            className="icon-btn"
+                            style={{ width: 32, height: 32, opacity: pdfEmpId && pdfEmpId !== emp.employeeId ? 0.4 : 1 }}
+                            disabled={pdfEmpId !== null}
+                            onClick={() => handleEmployeePdf(emp)}
+                            title={`Download ${emp.name} statement`}
+                          >
+                            {pdfEmpId === emp.employeeId
+                              ? <span style={{ fontSize: 10, color: "var(--low)" }}>…</span>
+                              : <I.download w={14} />}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -784,6 +1035,12 @@ function PrintablePayoutReport({
     employeeId: string;
     name: string;
     salary: number;
+    daysInMonth: number;
+    workingDays: number;
+    leaveDays: number;
+    dailyRate: number;
+    deduction: number;
+    finalSalary: number;
     bonus: number;
     totalPay: number;
     entries: number;
@@ -839,7 +1096,7 @@ function PrintablePayoutReport({
       {/* Summary tiles */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "14px 16px" }}>
         {[
-          { label: "Base Salary",      value: currency(totalSalary), border: "#e2e8f0" },
+          { label: "Final Salary",     value: currency(totalSalary), border: "#e2e8f0" },
           { label: "Production Bonus", value: currency(totalBonus),  border: "#bfdbfe" },
           { label: "Net Payable",      value: currency(totalPay),    border: "#a7f3d0" },
         ].map((item) => (
@@ -852,34 +1109,39 @@ function PrintablePayoutReport({
 
       {/* Employee table */}
       <div style={{ padding: "0 16px 14px", overflowX: "auto" }}>
-        <div style={{ borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden", minWidth: 480 }}>
+        <div style={{ borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden", minWidth: 600 }}>
           {/* Table header */}
-          <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 82px 82px 88px 52px", gap: 8, padding: "8px 14px", background: "#0d1b4b", color: "#fff" }}>
-            {["#", "Employee", "Salary", "Bonus", "Total Pay", "Entries"].map((h, i) => (
-              <span key={i} style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", textAlign: i > 1 ? "right" : "left" }}>{h}</span>
+          <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 72px 80px 68px 60px 68px", gap: 6, padding: "8px 14px", background: "#0d1b4b", color: "#fff" }}>
+            {["#", "Employee", "Monthly Sal.", "Worked / Month", "Earned Sal.", "Bonus", "Total Pay"].map((h, i) => (
+              <span key={i} style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", textAlign: i > 1 ? "right" : "left" }}>{h}</span>
             ))}
           </div>
           {rows.map((emp, index) => (
-            <div key={emp.employeeId} style={{ display: "grid", gridTemplateColumns: "28px 1fr 82px 82px 88px 52px", gap: 8, padding: "9px 14px", borderTop: "1px solid #f3f4f6" }}>
+            <div key={emp.employeeId} style={{ display: "grid", gridTemplateColumns: "20px 1fr 72px 80px 68px 60px 68px", gap: 6, padding: "9px 14px", borderTop: "1px solid #f3f4f6" }}>
               <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 500 }}>{index + 1}</span>
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{emp.name}</p>
                 <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 1 }}>{emp.stitches.toLocaleString()} stitches</p>
               </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#374151", textAlign: "right" }}>{currency(emp.salary)}</span>
+              <span style={{ fontSize: 11.5, color: "#6b7280", textAlign: "right" }}>{currency(emp.salary)}</span>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>{emp.workingDays} / {emp.daysInMonth} days</p>
+                <p style={{ fontSize: 10, color: emp.leaveDays > 0 ? "#ef4444" : "#9ca3af", marginTop: 1 }}>
+                  {emp.leaveDays > 0 ? `${emp.leaveDays} day${emp.leaveDays > 1 ? "s" : ""} off` : "Full month"}
+                </p>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#111827", textAlign: "right" }}>{currency(emp.finalSalary)}</span>
               <span style={{ fontSize: 12, fontWeight: 900, color: "#1e3a8a", textAlign: "right" }}>{currency(emp.bonus)}</span>
-              <span style={{ fontSize: 13, fontWeight: 900, color: "#111827", textAlign: "right" }}>{currency(emp.totalPay)}</span>
-              <span style={{ fontSize: 12, color: "#6b7280", textAlign: "right" }}>{emp.entries}</span>
+              <span style={{ fontSize: 12, fontWeight: 900, color: "#0d1b4b", textAlign: "right" }}>{currency(emp.totalPay)}</span>
             </div>
           ))}
           {/* Totals row */}
-          <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 82px 82px 88px 52px", gap: 8, padding: "9px 14px", borderTop: "2px solid #d1d5db", background: "#f9fafb" }}>
-            <span />
-            <span style={{ fontSize: 13, fontWeight: 900, color: "#111827" }}>Total</span>
+          <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 72px 80px 68px 60px 68px", gap: 6, padding: "9px 14px", borderTop: "2px solid #d1d5db", background: "#f9fafb" }}>
+            <span /><span style={{ fontSize: 13, fontWeight: 900, color: "#111827" }}>Total</span>
+            <span /><span />
             <span style={{ fontSize: 12, fontWeight: 900, color: "#111827", textAlign: "right" }}>{currency(totalSalary)}</span>
-            <span style={{ fontSize: 12, fontWeight: 900, color: "#111827", textAlign: "right" }}>{currency(totalBonus)}</span>
-            <span style={{ fontSize: 13, fontWeight: 900, color: "#111827", textAlign: "right" }}>{currency(totalPay)}</span>
-            <span />
+            <span style={{ fontSize: 12, fontWeight: 900, color: "#1e3a8a", textAlign: "right" }}>{currency(totalBonus)}</span>
+            <span style={{ fontSize: 12, fontWeight: 900, color: "#0d1b4b", textAlign: "right" }}>{currency(totalPay)}</span>
           </div>
         </div>
       </div>
