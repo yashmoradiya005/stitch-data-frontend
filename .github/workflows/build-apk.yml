@@ -29,7 +29,7 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: Cache Gradle wrapper + caches
+      - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
@@ -44,21 +44,18 @@ jobs:
       - name: Write Android SDK path
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
-      - name: Make Gradle wrapper executable
-        run: chmod +x android/gradlew
-
-      - name: Download Gradle wrapper (warm cache before cap sync)
-        working-directory: android
-        run: ./gradlew --version
-
       - name: Install Node dependencies
         run: npm ci
 
       - name: Build Next.js static export for mobile
         run: npm run build:mobile
 
-      - name: Sync Capacitor assets into Android project
-        run: npx cap sync android
+      # cap copy only copies web assets — no Gradle call, no 10 s timeout
+      - name: Copy web assets into Android project
+        run: npx cap copy android
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
 
       - name: Build debug APK
         working-directory: android
