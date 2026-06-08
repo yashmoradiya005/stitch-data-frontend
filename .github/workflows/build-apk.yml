@@ -5,18 +5,22 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
 
       - name: Set up Java 17
@@ -25,27 +29,42 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
+      - name: Cache Gradle wrapper + caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle', 'android/app/build.gradle') }}
+          restore-keys: gradle-
+
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: Write Android SDK path to local.properties
+      - name: Write Android SDK path
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-
-      - name: Install Node dependencies
-        run: npm ci
-
-      - name: Build Next.js static export (mobile)
-        run: npm run build:mobile
-
-      - name: Sync web assets into Android project
-        run: npx cap sync android
 
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
+      - name: Download Gradle wrapper (warm cache before cap sync)
+        working-directory: android
+        run: ./gradlew --version
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build Next.js static export for mobile
+        run: npm run build:mobile
+
+      - name: Sync Capacitor assets into Android project
+        run: npx cap sync android
+
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g -Dorg.gradle.workers.max=2"
+        run: ./gradlew assembleDebug --no-daemon --warning-mode all
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
