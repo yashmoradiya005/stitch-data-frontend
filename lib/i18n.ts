@@ -98,7 +98,7 @@ export const STR: Record<string, [string, string]> = {
   signIn: ["Sign in", "સાઇન ઇન"],
   noAccount: ["Don't have an account?", "એકાઉન્ટ નથી?"],
   createOne: ["Create one", "બનાવો"],
-  tagline: ["Embroidery production, refined.", "ભરતકામ ઉત્પાદન, શુદ્ધ."],
+  tagline: ["Embroidery production Suite.", "ભરતકામ ઉત્પાદન શુદ્ધ."],
   myProfile: ["My profile", "મારી પ્રોફાઇલ"],
   logout: ["Log out", "લોગ આઉટ"],
   theme: ["Theme", "થીમ"],

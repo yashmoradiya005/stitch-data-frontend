@@ -50,7 +50,8 @@ async function generatePayoutPDF(opts: {
   const G600:    RGB = [75,  85,  99 ];
   const G900:    RGB = [17,  24,  39 ];
 
-  const rs = (n: number) => `Rs ${n.toLocaleString("en-IN")}`;
+  const rs  = (n: number) => `Rs ${Math.round(n).toLocaleString("en-IN")}`;
+  const num = (n: number) => Math.round(n).toLocaleString("en-IN");
 
   // ── HEADER (page 1, clean typography only) ───────────────────────────────
   function drawHeader() {
@@ -152,15 +153,15 @@ async function generatePayoutPDF(opts: {
   doc.rect(ML + 40, secY + 1.5, CW - 40, 0.8, "F");
 
   // ── TABLE ─────────────────────────────────────────────────────────────────
-  // Column widths: 8+44+30+30+26+22+22 = 182 (= CW) — mirrors on-screen view
+  // Column widths: 12+40+30+30+26+22+22 = 182 (= CW) — mirrors on-screen view
   const tableRows = opts.rows.map((emp, i) => [
     String(i + 1),
     emp.name,
-    rs(emp.salary),
+    num(emp.salary),
     `${emp.workingDays} / ${emp.daysInMonth} days`,
-    rs(emp.finalSalary),
-    rs(emp.bonus),
-    rs(emp.totalPay),
+    num(emp.finalSalary),
+    num(emp.bonus),
+    num(emp.totalPay),
   ]);
 
   // totalRow is drawn manually below so we control page-break behaviour
@@ -170,8 +171,8 @@ async function generatePayoutPDF(opts: {
     head: [["#", "Employee", "Monthly Sal.", "Worked / Month", "Earned Sal.", "Bonus", "Total Pay"]],
     body: tableRows,
     columnStyles: {
-      0: { cellWidth: 8,  halign: "center", textColor: G400 },
-      1: { cellWidth: 44, halign: "left" },
+      0: { cellWidth: 12, halign: "center", textColor: G400 },
+      1: { cellWidth: 40, halign: "left" },
       2: { cellWidth: 30, halign: "right" },
       3: { cellWidth: 30, halign: "center" },
       4: { cellWidth: 26, halign: "right", fontStyle: "bold" },
@@ -541,7 +542,7 @@ type ReportView = "payout" | "employee" | "daily" | "machine" | "summary";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function currency(value: number) {
-  return `Rs ${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  return value.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 }
 
 function initials(name: string) {
@@ -685,56 +686,6 @@ export default function ReportsPage() {
     }
   };
 
-  const downloadCurrentReport = () => {
-    if (!summary || !currentCompany) return;
-    const prefix = `${currentCompany.name.replace(/\s+/g, "-").toLowerCase()}-${reportLabel.toLowerCase()}`;
-
-    if (view === "payout") {
-      downloadCsv(`${prefix}-salary-bonus-report.csv`, [
-        ["Employee", "Monthly Salary", "Month Days", "Worked Days", "Leave Days", "Per Day Rate", "Earned Salary", "Bonus", "Total Pay", "Entries", "Stitches"],
-        ...payoutRows.map((emp) => [emp.name, emp.salary, emp.daysInMonth, emp.workingDays, emp.leaveDays, emp.dailyRate, emp.finalSalary, emp.bonus, emp.totalPay, emp.entries, emp.stitches]),
-        ["Total", "", "", "", "", "", totalSalary, totals?.totalBonus ?? 0, totalPay, totals?.entries ?? 0, totals?.totalStitch ?? 0],
-      ]);
-      return;
-    }
-
-    if (view === "employee") {
-      downloadCsv(`${prefix}-employee-payout.csv`, [
-        ["Employee", "Entries", "Stitches", "Monthly Salary", "Month Days", "Worked Days", "Leave Days", "Per Day Rate", "Earned Salary", "Bonus", "Total Pay"],
-        ...payoutRows.map((emp) => [emp.name, emp.entries, emp.stitches, emp.salary, emp.daysInMonth, emp.workingDays, emp.leaveDays, emp.dailyRate, emp.finalSalary, emp.bonus, emp.totalPay]),
-      ]);
-      return;
-    }
-
-    if (view === "daily") {
-      downloadCsv(`${prefix}-daily-production.csv`, [
-        ["Date", "Stitches"],
-        ...dailyRows.map((day) => [day.date, day.total]),
-      ]);
-      return;
-    }
-
-    if (view === "machine") {
-      downloadCsv(`${prefix}-machine-utilization.csv`, [
-        ["Machine", "Stitches"],
-        ...machineRows.map((machine) => [`M-${machine.machine}`, machine.total]),
-      ]);
-      return;
-    }
-
-    downloadCsv(`${prefix}-summary.csv`, [
-      ["Metric", "Value"],
-      ["Total entries", totals?.entries ?? 0],
-      ["Total stitches", totals?.totalStitch ?? 0],
-      ["Total bonus", totals?.totalBonus ?? 0],
-      ["Active employees", totals?.activeEmployeeCount ?? 0],
-      ["Active days", dailyRows.length],
-      ["Active day average", activeDayAvg],
-      ["Day shift stitches", totals?.dayStitch ?? 0],
-      ["Night shift stitches", totals?.nightStitch ?? 0],
-    ]);
-  };
-
   const VIEW_TABS: Array<{ id: ReportView; label: string }> = [
     { id: "payout",   label: t("payout", lang) },
     { id: "employee", label: t("employees", lang) },
@@ -759,47 +710,54 @@ export default function ReportsPage() {
         </div>
 
         {/* Controls card: month nav + tabs + export */}
-        <div className="card" style={{ marginBottom: 13, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div className="card" style={{ marginBottom: 13, padding: 0, overflow: "hidden" }}>
 
           {/* Month navigator */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14 }}>
+          <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <button className="icon-btn" onClick={prevMonth} aria-label="Previous month">
               <I.chevLeft w={18} />
             </button>
-            <div style={{ textAlign: "center", minWidth: 84 }}>
-              <p className="num" style={{ fontSize: 17, fontWeight: 800, color: "var(--hi)", lineHeight: 1.1 }}>{MONTHS[month - 1]}</p>
+            <div style={{ textAlign: "center" }}>
+              <p className="num" style={{ fontSize: 18, fontWeight: 800, color: "var(--hi)", lineHeight: 1.1 }}>{MONTHS[month - 1]}</p>
               <p className="dim" style={{ fontSize: 12, marginTop: 2 }}>{year}</p>
             </div>
-            <button
-              className="icon-btn"
-              onClick={nextMonth}
-              disabled={isCurrentMonth}
-              aria-label="Next month"
-              style={{ opacity: isCurrentMonth ? 0.35 : 1 }}
-            >
+            <button className="icon-btn" onClick={nextMonth} disabled={isCurrentMonth} aria-label="Next month" style={{ opacity: isCurrentMonth ? 0.35 : 1 }}>
               <I.chevRight w={18} />
             </button>
           </div>
 
-          {/* View tabs */}
-          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2, scrollbarWidth: "none" }}>
-            {VIEW_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setView(tab.id)}
-                className={"chip" + (view === tab.id ? " on" : "")}
-                style={{ flexShrink: 0 }}
-              >
-                {tab.label}
-              </button>
-            ))}
+          {/* Segmented tab control */}
+          <div style={{ padding: "10px 12px 0" }}>
+            <div style={{ display: "flex", background: "var(--s2)", borderRadius: 13, padding: 4, gap: 2, overflowX: "auto", scrollbarWidth: "none" }}>
+              {VIEW_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setView(tab.id)}
+                  style={{
+                    flex: 1,
+                    flexShrink: 0,
+                    padding: "8px 6px",
+                    borderRadius: 10,
+                    border: "none",
+                    fontSize: 11.5,
+                    fontWeight: view === tab.id ? 700 : 500,
+                    background: view === tab.id ? "var(--s1)" : "transparent",
+                    color: view === tab.id ? "var(--hi)" : "var(--low)",
+                    boxShadow: view === tab.id ? "0 1px 5px rgba(0,0,0,.13)" : "none",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    transition: "background .15s, color .15s",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Export buttons */}
-          <div style={{ display: "flex", gap: 10 }}>
+          {/* Save PDF button */}
+          <div style={{ padding: "10px 12px 12px" }}>
             <button
-              className="btn btn--ghost"
-              style={{ flex: 1 }}
               disabled={!summary || loading}
               onClick={() => {
                 if (!summary || !currentCompany) return;
@@ -829,16 +787,26 @@ export default function ReportsPage() {
                   filename: `${prefix}-payout-report.pdf`,
                 });
               }}
+              style={{
+                width: "100%",
+                padding: "12px",
+                background: !summary || loading
+                  ? "var(--s2)"
+                  : "linear-gradient(135deg, #0d1b4b 0%, #1e3a8a 100%)",
+                color: !summary || loading ? "var(--low)" : "#fff",
+                border: "none",
+                borderRadius: 12,
+                fontSize: 14,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                cursor: !summary || loading ? "not-allowed" : "pointer",
+                transition: "opacity .15s",
+              }}
             >
-              <I.download w={15} /> {t("savePdf", lang)}
-            </button>
-            <button
-              className="btn btn--primary"
-              style={{ flex: 1 }}
-              disabled={!summary || loading}
-              onClick={downloadCurrentReport}
-            >
-              <I.download w={15} /> {t("csv", lang)}
+              <I.download w={16} /> {t("savePdf", lang)}
             </button>
           </div>
         </div>
@@ -886,49 +854,85 @@ export default function ReportsPage() {
                 subtitle={t("payoutBreakdown", lang)}
                 count={employeeRows.length}
               />
-              <TableShell empty={!loading && employeeRows.length === 0} loading={loading} emptyText="No employee production for this month">
-                <div style={{ overflowX: "auto" }}>
-                  <div style={{ minWidth: 520 }}>
-                    <div className="row" style={{ background: "var(--s2)", borderBottom: "1px solid var(--line)" }}>
-                      <span style={{ flex: 1, fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("name", lang)}</span>
-                      <span style={{ width: 64, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>Worked</span>
-                      <span style={{ width: 52, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>Per Day</span>
-                      <span style={{ width: 68, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("finalSalary", lang)}</span>
-                      <span style={{ width: 60, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("bonus", lang)}</span>
-                      <span style={{ width: 72, textAlign: "right", fontSize: 10, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("total", lang)}</span>
-                      <span style={{ width: 36 }} />
-                    </div>
-                    {payoutRows.map((emp, i) => (
-                      <div className="row" key={emp.employeeId} style={{ borderTop: i ? "1px solid var(--line)" : "none" }}>
+              {loading ? (
+                <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {[1, 2, 3, 4].map((i) => <div key={i} className="skel" style={{ height: 96, borderRadius: 14 }} />)}
+                </div>
+              ) : payoutRows.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0" }}>
+                  <p className="muted" style={{ fontSize: 13 }}>No employee production for this month</p>
+                </div>
+              ) : (
+                <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {payoutRows.map((emp) => (
+                    <div key={emp.employeeId} style={{ borderRadius: 14, background: "var(--s1)", border: "1px solid var(--line)", borderLeft: "4px solid #0d1b4b", boxShadow: "0 2px 8px rgba(0,0,0,.06)", overflow: "hidden" }}>
+
+                      {/* Name + Total Pay + Download */}
+                      <div style={{ padding: "12px 14px 0", display: "flex", alignItems: "flex-start", gap: 8 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--hi)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{emp.name}</p>
-                          {emp.leaveDays > 0 && (
-                            <p style={{ fontSize: 10.5, color: "var(--danger)", marginTop: 1 }}>{emp.leaveDays} day{emp.leaveDays > 1 ? "s" : ""} off</p>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: "var(--hi)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{emp.name}</p>
+                          <p style={{ fontSize: 10.5, color: "var(--low)", marginTop: 1 }}>{emp.stitches.toLocaleString()} stitches</p>
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0, marginRight: 6 }}>
+                          <p style={{ fontSize: 9, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".07em" }}>Total Pay</p>
+                          <p className="num" style={{ fontSize: 17, fontWeight: 900, color: "var(--hi)", lineHeight: 1.2 }}>{currency(emp.totalPay)}</p>
+                        </div>
+                        <button
+                          disabled={pdfEmpId !== null}
+                          onClick={() => handleEmployeePdf(emp)}
+                          title={`Download ${emp.name} statement`}
+                          style={{
+                            flexShrink: 0,
+                            display: "flex", alignItems: "center", gap: 5,
+                            padding: "6px 11px",
+                            background: pdfEmpId === emp.employeeId ? "var(--s2)" : "#0d1b4b",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 9,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: pdfEmpId !== null ? "not-allowed" : "pointer",
+                            opacity: pdfEmpId && pdfEmpId !== emp.employeeId ? 0.35 : 1,
+                            marginTop: 2,
+                          }}
+                        >
+                          {pdfEmpId === emp.employeeId
+                            ? <span style={{ fontSize: 11, color: "var(--low)" }}>…</span>
+                            : <><I.download w={13} /> PDF</>}
+                        </button>
+                      </div>
+
+                      {/* Stats strip */}
+                      <div style={{ margin: "10px 14px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, background: "var(--s2)", borderRadius: 10, padding: "9px 10px" }}>
+                        {[
+                          { label: "Worked", value: `${emp.workingDays} / ${emp.daysInMonth}` },
+                          { label: "Per Day", value: currency(emp.dailyRate) },
+                          { label: "Earned Sal.", value: currency(emp.finalSalary) },
+                        ].map(({ label, value }, i) => (
+                          <div key={i}>
+                            <p style={{ fontSize: 9, fontWeight: 700, color: "var(--low)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>{label}</p>
+                            <p className="num" style={{ fontSize: 12.5, fontWeight: 700, color: "var(--mid)" }}>{value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Leave / Bonus footer */}
+                      {(emp.leaveDays > 0 || emp.bonus > 0) && (
+                        <div style={{ borderTop: "1px solid var(--line)", padding: "7px 14px 9px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 10.5, color: "var(--danger)", opacity: emp.leaveDays > 0 ? 1 : 0 }}>
+                            {emp.leaveDays} day{emp.leaveDays > 1 ? "s" : ""} off
+                          </span>
+                          {emp.bonus > 0 && (
+                            <span className="num" style={{ fontSize: 11.5, fontWeight: 800, color: "var(--violet)" }}>
+                              + {currency(emp.bonus)} bonus
+                            </span>
                           )}
                         </div>
-                        <span style={{ width: 64, textAlign: "right", fontSize: 12, fontWeight: 600, color: "var(--mid)" }}>{emp.workingDays} / {emp.daysInMonth}</span>
-                        <span style={{ width: 52, textAlign: "right", fontSize: 11.5, color: "var(--low)" }}>{currency(emp.dailyRate)}</span>
-                        <span style={{ width: 68, textAlign: "right", fontSize: 12, fontWeight: 600, color: "var(--mid)" }}>{currency(emp.finalSalary)}</span>
-                        <span style={{ width: 60, textAlign: "right", fontSize: 12, fontWeight: 700, color: "var(--violet)" }}>{currency(emp.bonus)}</span>
-                        <span style={{ width: 72, textAlign: "right", fontSize: 13, fontWeight: 800, color: "var(--hi)" }}>{currency(emp.totalPay)}</span>
-                        <div style={{ width: 36, display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
-                          <button
-                            className="icon-btn"
-                            style={{ width: 32, height: 32, opacity: pdfEmpId && pdfEmpId !== emp.employeeId ? 0.4 : 1 }}
-                            disabled={pdfEmpId !== null}
-                            onClick={() => handleEmployeePdf(emp)}
-                            title={`Download ${emp.name} statement`}
-                          >
-                            {pdfEmpId === emp.employeeId
-                              ? <span style={{ fontSize: 10, color: "var(--low)" }}>…</span>
-                              : <I.download w={14} />}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </TableShell>
+              )}
             </>
           )}
 
@@ -1053,9 +1057,9 @@ function PrintablePayoutReport({
 }) {
   if (loading) {
     return (
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="skel" style={{ height: 44, borderRadius: 10 }} />
+          <div key={i} className="skel" style={{ height: 96, borderRadius: 12 }} />
         ))}
       </div>
     );
@@ -1107,41 +1111,70 @@ function PrintablePayoutReport({
         ))}
       </div>
 
-      {/* Employee table */}
-      <div style={{ padding: "0 16px 14px", overflowX: "auto" }}>
-        <div style={{ borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden", minWidth: 600 }}>
-          {/* Table header */}
-          <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 72px 80px 68px 60px 68px", gap: 6, padding: "8px 14px", background: "#0d1b4b", color: "#fff" }}>
-            {["#", "Employee", "Monthly Sal.", "Worked / Month", "Earned Sal.", "Bonus", "Total Pay"].map((h, i) => (
-              <span key={i} style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", textAlign: i > 1 ? "right" : "left" }}>{h}</span>
-            ))}
-          </div>
-          {rows.map((emp, index) => (
-            <div key={emp.employeeId} style={{ display: "grid", gridTemplateColumns: "20px 1fr 72px 80px 68px 60px 68px", gap: 6, padding: "9px 14px", borderTop: "1px solid #f3f4f6" }}>
-              <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 500 }}>{index + 1}</span>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{emp.name}</p>
-                <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 1 }}>{emp.stitches.toLocaleString()} stitches</p>
+      {/* Employee cards */}
+      <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {rows.map((emp, index) => (
+          <div key={emp.employeeId} style={{ borderRadius: 14, background: "#fff", border: "1px solid #e5e7eb", borderLeft: "4px solid #0d1b4b", boxShadow: "0 2px 8px rgba(13,27,75,.07)", overflow: "hidden" }}>
+
+            {/* Name + Total Pay */}
+            <div style={{ padding: "12px 14px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                <span style={{ flexShrink: 0, width: 22, height: 22, background: "#0d1b4b", color: "#fff", borderRadius: 7, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {index + 1}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 700, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{emp.name}</p>
+                  <p style={{ fontSize: 10.5, color: "#9ca3af", marginTop: 1 }}>{emp.stitches.toLocaleString()} stitches</p>
+                </div>
               </div>
-              <span style={{ fontSize: 11.5, color: "#6b7280", textAlign: "right" }}>{currency(emp.salary)}</span>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>{emp.workingDays} / {emp.daysInMonth} days</p>
-                <p style={{ fontSize: 10, color: emp.leaveDays > 0 ? "#ef4444" : "#9ca3af", marginTop: 1 }}>
-                  {emp.leaveDays > 0 ? `${emp.leaveDays} day${emp.leaveDays > 1 ? "s" : ""} off` : "Full month"}
-                </p>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <p style={{ fontSize: 9, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em" }}>Total Pay</p>
+                <p style={{ fontSize: 17, fontWeight: 900, color: "#0d1b4b", lineHeight: 1.2 }}>{currency(emp.totalPay)}</p>
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#111827", textAlign: "right" }}>{currency(emp.finalSalary)}</span>
-              <span style={{ fontSize: 12, fontWeight: 900, color: "#1e3a8a", textAlign: "right" }}>{currency(emp.bonus)}</span>
-              <span style={{ fontSize: 12, fontWeight: 900, color: "#0d1b4b", textAlign: "right" }}>{currency(emp.totalPay)}</span>
             </div>
-          ))}
-          {/* Totals row */}
-          <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 72px 80px 68px 60px 68px", gap: 6, padding: "9px 14px", borderTop: "2px solid #d1d5db", background: "#f9fafb" }}>
-            <span /><span style={{ fontSize: 13, fontWeight: 900, color: "#111827" }}>Total</span>
-            <span /><span />
-            <span style={{ fontSize: 12, fontWeight: 900, color: "#111827", textAlign: "right" }}>{currency(totalSalary)}</span>
-            <span style={{ fontSize: 12, fontWeight: 900, color: "#1e3a8a", textAlign: "right" }}>{currency(totalBonus)}</span>
-            <span style={{ fontSize: 12, fontWeight: 900, color: "#0d1b4b", textAlign: "right" }}>{currency(totalPay)}</span>
+
+            {/* Stats strip */}
+            <div style={{ margin: "10px 14px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, background: "#f8fafc", borderRadius: 10, padding: "9px 10px" }}>
+              {[
+                { label: "Monthly Sal.", value: currency(emp.salary) },
+                { label: "Worked", value: `${emp.workingDays} / ${emp.daysInMonth}` },
+                { label: "Earned Sal.", value: currency(emp.finalSalary) },
+              ].map(({ label, value }, i) => (
+                <div key={i}>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>{label}</p>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, color: "#374151" }}>{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Leave / bonus footer strip */}
+            {(emp.leaveDays > 0 || emp.bonus > 0) && (
+              <div style={{ borderTop: "1px solid #f3f4f6", padding: "7px 14px 9px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 10.5, color: emp.leaveDays > 0 ? "#ef4444" : "transparent" }}>
+                  {emp.leaveDays > 0 ? `${emp.leaveDays} day${emp.leaveDays > 1 ? "s" : ""} off` : ""}
+                </span>
+                {emp.bonus > 0 && (
+                  <span style={{ fontSize: 11.5, fontWeight: 800, color: "#1e3a8a" }}>+ {currency(emp.bonus)} bonus</span>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Totals card */}
+        <div style={{ borderRadius: 14, background: "linear-gradient(135deg, #0d1b4b 0%, #1e3a8a 100%)", padding: "14px 16px", marginTop: 4 }}>
+          <p style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(219,234,254,.7)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 10 }}>Summary · {rows.length} Employees</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            {[
+              { label: "Earned Sal.", value: currency(totalSalary) },
+              { label: "Bonus", value: currency(totalBonus) },
+              { label: "Net Payable", value: currency(totalPay) },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <p style={{ fontSize: 9, fontWeight: 700, color: "rgba(219,234,254,.6)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>{label}</p>
+                <p style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>{value}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>

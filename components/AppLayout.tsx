@@ -412,8 +412,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const greeting = greet(lang);
-  const firstName = user?.name?.split(" ")[0] ?? "";
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const greeting = mounted ? greet(lang) : "";
+  const firstName = mounted ? (user?.name?.split(" ")[0] ?? "") : "";
 
   const tabs = [
     { href: "/dashboard", icon: I.home, label: t("home", lang) },
@@ -470,7 +473,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Profile */}
         <div style={{ position: "relative" }}>
           <button onClick={() => setProfileOpen((v) => !v)} style={{ display: "block" }}>
-            <Avatar name={user?.name ?? "?"} grad={nameToGrad(user?.name ?? "")} size={34} />
+            <Avatar name={mounted ? (user?.name ?? "?") : "?"} grad={mounted ? nameToGrad(user?.name ?? "") : 0} size={34} />
           </button>
           {profileOpen && (
             <div className="dropdown" style={{ top: "calc(100% + 8px)", right: 0, minWidth: 200 }}>

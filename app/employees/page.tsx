@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isAuthenticated } from "@/lib/auth";
 import { useCompany } from "@/context/CompanyContext";
@@ -8,8 +8,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { AppLayout } from "@/components/AppLayout";
 import {
   createEmployee, updateEmployee, deleteEmployee, getEmployees,
-  getLeaveDays, setLeaveDays, calcSalary,
-  toBase64, Employee, SalaryRecord,
+  toBase64, Employee,
 } from "@/lib/employee";
 import { t, money, nums } from "@/lib/i18n";
 import Avatar, { nameToGrad } from "@/components/sd/Avatar";
@@ -203,141 +202,16 @@ function DeleteModal({ employee, onCancel, onConfirm, loading }: {
   );
 }
 
-// ─── Salary Card ─────────────────────────────────────────────────────────────
-
-function SalaryCard({
-  record,
-  companyId,
-  year,
-  month,
-  onUpdated,
-}: {
-  record: SalaryRecord;
-  companyId: string;
-  year: number;
-  month: number;
-  onUpdated: (r: SalaryRecord) => void;
-}) {
-  const { lang } = useTheme();
-  const [saving, setSaving] = useState(false);
-  const [inputVal, setInputVal] = useState(String(record.leaveDays));
-
-  // keep input in sync if parent reloads
-  useEffect(() => { setInputVal(String(record.leaveDays)); }, [record.leaveDays]);
-
-  const hasSalary = record.monthlySalary !== null && record.monthlySalary > 0;
-  const calc = hasSalary ? calcSalary(record.monthlySalary, Number(inputVal) || 0) : null;
-
-  const commit = useCallback(async (val: number) => {
-    if (!hasSalary) return;
-    const clamped = Math.max(0, Math.min(31, val));
-    if (clamped === record.leaveDays) return;
-    setSaving(true);
-    try {
-      const updated = await setLeaveDays(companyId, record.employeeId, year, month, clamped);
-      onUpdated(updated);
-    } catch { } finally { setSaving(false); }
-  }, [companyId, record, year, month, hasSalary, onUpdated]);
-
-  const stepLeave = (delta: number) => {
-    const next = Math.max(0, Math.min(31, (Number(inputVal) || 0) + delta));
-    setInputVal(String(next));
-    commit(next);
-  };
-
-  const grad = nameToGrad(record.employeeName);
-
-  return (
-    <div className="card" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* Employee header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Avatar name={record.employeeName} grad={grad} size={36} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 13.5, fontWeight: 700, color: "var(--hi)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{record.employeeName}</p>
-          {hasSalary
-            ? <p className="num dim" style={{ fontSize: 11.5 }}>{money(record.monthlySalary!, lang)} / month</p>
-            : <p className="dim" style={{ fontSize: 11.5 }}>{t("noSalarySet", lang)}</p>
-          }
-        </div>
-      </div>
-
-      {hasSalary && (
-        <>
-          {/* Daily rate row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div style={{ padding: "7px 10px", background: "var(--s2)", borderRadius: 10 }}>
-              <p className="dim" style={{ fontSize: 10, marginBottom: 2 }}>{t("dailyRate", lang)}</p>
-              <p className="num" style={{ fontSize: 13, fontWeight: 700, color: "var(--mid)" }}>
-                {money(calc!.dailyRate, lang)}
-              </p>
-            </div>
-            <div style={{ padding: "7px 10px", background: "var(--s2)", borderRadius: 10 }}>
-              <p className="dim" style={{ fontSize: 10, marginBottom: 2 }}>{t("deduction", lang)}</p>
-              <p className="num" style={{ fontSize: 13, fontWeight: 700, color: calc!.deduction > 0 ? "var(--danger)" : "var(--low)" }}>
-                {calc!.deduction > 0 ? `- ${money(calc!.deduction, lang)}` : "—"}
-              </p>
-            </div>
-          </div>
-
-          {/* Leave days stepper */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--s2)", borderRadius: 12 }}>
-            <span style={{ fontSize: 12.5, color: "var(--mid)", fontWeight: 600 }}>{t("leaveDays", lang)}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button
-                className="icon-btn"
-                style={{ width: 30, height: 30, background: "var(--s1)", fontSize: 18, fontWeight: 700 }}
-                onClick={() => stepLeave(-1)}
-                disabled={saving || Number(inputVal) <= 0}
-                aria-label="Decrease leave"
-              >−</button>
-              <input
-                className="num"
-                type="number"
-                min={0}
-                max={31}
-                step={0.5}
-                value={inputVal}
-                onChange={(e) => setInputVal(e.target.value)}
-                onBlur={() => commit(Number(inputVal) || 0)}
-                disabled={saving}
-                style={{ width: 48, textAlign: "center", fontSize: 15, fontWeight: 800, color: "var(--hi)", background: "transparent", border: "none", outline: "none" }}
-              />
-              <button
-                className="icon-btn"
-                style={{ width: 30, height: 30, background: "var(--s1)", fontSize: 18, fontWeight: 700 }}
-                onClick={() => stepLeave(1)}
-                disabled={saving || Number(inputVal) >= 31}
-                aria-label="Increase leave"
-              >+</button>
-            </div>
-          </div>
-
-          {/* Final salary */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: calc!.deduction > 0 ? "rgba(239,68,68,.07)" : "rgba(16,185,129,.07)", borderRadius: 12, border: `1px solid ${calc!.deduction > 0 ? "rgba(239,68,68,.18)" : "rgba(16,185,129,.18)"}` }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--mid)" }}>{t("finalSalary", lang)}</span>
-            <span className="num" style={{ fontSize: 15, fontWeight: 900, color: calc!.deduction > 0 ? "var(--danger)" : "var(--teal)" }}>
-              {saving ? "…" : money(calc!.finalSalary, lang)}
-            </span>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function sortByName(list: Employee[]) {
   return [...list].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 }
 
-type PageTab = "team" | "salary";
-
 export default function EmployeesPage() {
   const router = useRouter();
   const { currentCompany } = useCompany();
   const { lang } = useTheme();
-  const [tab, setTab] = useState<PageTab>("team");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -346,13 +220,6 @@ export default function EmployeesPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [cardEmployee, setCardEmployee] = useState<Employee | null>(null);
   const [search, setSearch] = useState("");
-
-  // Salary tab state
-  const now = new Date();
-  const [salaryYear, setSalaryYear] = useState(now.getFullYear());
-  const [salaryMonth, setSalaryMonth] = useState(now.getMonth() + 1);
-  const [salaryRecords, setSalaryRecords] = useState<SalaryRecord[]>([]);
-  const [salaryLoading, setSalaryLoading] = useState(false);
 
   const filtered = useMemo(
     () => search.trim() === ""
@@ -377,15 +244,6 @@ export default function EmployeesPage() {
       .finally(() => setPageLoading(false));
   }, [currentCompany]);
 
-  useEffect(() => {
-    if (!currentCompany || tab !== "salary") return;
-    setSalaryLoading(true);
-    getLeaveDays(currentCompany.id, salaryYear, salaryMonth)
-      .then(setSalaryRecords)
-      .catch(() => setSalaryRecords([]))
-      .finally(() => setSalaryLoading(false));
-  }, [currentCompany, tab, salaryYear, salaryMonth]);
-
   const handleSaved = (emp: Employee) => setEmployees((prev) => sortByName([...prev, emp]));
   const handleUpdated = (emp: Employee) => setEmployees((prev) => sortByName(prev.map((e) => (e.id === emp.id ? emp : e))));
   const handleDelete = async () => {
@@ -397,23 +255,6 @@ export default function EmployeesPage() {
       setDeleteTarget(null);
     } catch { } finally { setDeleteLoading(false); }
   };
-
-  const prevSalaryMonth = () => {
-    if (salaryMonth === 1) { setSalaryYear((y) => y - 1); setSalaryMonth(12); }
-    else setSalaryMonth((m) => m - 1);
-  };
-  const nextSalaryMonth = () => {
-    const isCurrent = salaryYear === now.getFullYear() && salaryMonth === now.getMonth() + 1;
-    if (isCurrent) return;
-    if (salaryMonth === 12) { setSalaryYear((y) => y + 1); setSalaryMonth(1); }
-    else setSalaryMonth((m) => m + 1);
-  };
-
-  const handleLeaveUpdated = useCallback((updated: SalaryRecord) => {
-    setSalaryRecords((prev) => prev.map((r) => r.employeeId === updated.employeeId ? updated : r));
-  }, []);
-
-  const isSalaryCurrent = salaryYear === now.getFullYear() && salaryMonth === now.getMonth() + 1;
 
   return (
     <AppLayout>
@@ -430,21 +271,8 @@ export default function EmployeesPage() {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          {([["team", t("employees", lang)], ["salary", t("salaryMgmt", lang)]] as [PageTab, string][]).map(([id, label]) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={"chip" + (tab === id ? " on" : "")}
-              style={{ flexShrink: 0 }}
-            >{label}</button>
-          ))}
-        </div>
-
-        {/* ── Team tab ── */}
-        {tab === "team" && (
-          <>
+        {/* ── Employees ── */}
+        <>
             {/* Search */}
             <div style={{ position: "relative", marginBottom: 14 }}>
               <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--low)" }}><I.search w={18} /></span>
@@ -500,54 +328,7 @@ export default function EmployeesPage() {
                 ))}
               </div>
             )}
-          </>
-        )}
-
-        {/* ── Salary tab ── */}
-        {tab === "salary" && (
-          <>
-            {/* Month navigator */}
-            <div className="card" style={{ padding: "10px 16px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <button className="icon-btn" onClick={prevSalaryMonth} aria-label="Previous month"><I.chevLeft w={18} /></button>
-              <div style={{ textAlign: "center" }}>
-                <p className="num" style={{ fontSize: 17, fontWeight: 800, color: "var(--hi)", lineHeight: 1.1 }}>{MONTHS[salaryMonth - 1]}</p>
-                <p className="dim" style={{ fontSize: 12, marginTop: 2 }}>{salaryYear}</p>
-              </div>
-              <button className="icon-btn" onClick={nextSalaryMonth} disabled={isSalaryCurrent} style={{ opacity: isSalaryCurrent ? 0.35 : 1 }} aria-label="Next month"><I.chevRight w={18} /></button>
-            </div>
-
-            {/* Formula note */}
-            <div style={{ padding: "8px 12px", marginBottom: 12, background: "var(--s2)", borderRadius: 12, display: "flex", alignItems: "center", gap: 8 }}>
-              <I.rupee w={14} />
-              <p style={{ fontSize: 11.5, color: "var(--mid)" }}>
-                Daily rate = Salary ÷ 30 · Deduction = Daily rate × Leave days
-              </p>
-            </div>
-
-            {salaryLoading ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {[0, 1, 2].map((i) => <div key={i} className="skel" style={{ height: 148, borderRadius: "var(--r)" }} />)}
-              </div>
-            ) : salaryRecords.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
-                <p className="muted">{t("noEmployees", lang)}</p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {salaryRecords.map((record) => (
-                  <SalaryCard
-                    key={record.employeeId}
-                    record={record}
-                    companyId={currentCompany!.id}
-                    year={salaryYear}
-                    month={salaryMonth}
-                    onUpdated={handleLeaveUpdated}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+        </>)
       </div>
 
       {drawerOpen && currentCompany && (
